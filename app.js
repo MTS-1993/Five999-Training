@@ -37,6 +37,7 @@ const courseTag = document.getElementById("courseTag");
 const courseHeading = document.getElementById("courseHeading");
 const courseSummary = document.getElementById("courseSummary");
 const courseMedia = document.getElementById("courseMedia");
+const heroArt = document.getElementById("heroArt");
 const moduleProgress = document.getElementById("moduleProgress");
 const quizProgress = document.getElementById("quizProgress");
 const certificateProgress = document.getElementById("certificateProgress");
@@ -271,6 +272,25 @@ function renderMedia(imageUrl, resourceUrl) {
     );
   }
   return parts.join("");
+}
+
+function renderHeroImage(imageUrl) {
+  const safeImageUrl = safeUrl(imageUrl);
+  if (safeImageUrl) {
+    heroArt.classList.add("has-training-image");
+    heroArt.innerHTML = `<img class="hero-training-image" src="${escapeHtml(safeImageUrl)}" alt="" />`;
+    return;
+  }
+
+  heroArt.classList.remove("has-training-image");
+  heroArt.innerHTML = `
+    <div class="signal-card">
+      <span></span>
+      <span></span>
+      <span></span>
+      <strong>FMS</strong>
+    </div>
+  `;
 }
 
 function modulePoints(module) {
@@ -714,6 +734,7 @@ function render() {
         ? "Open Create/Edit/Delete to add the first training."
         : "A Command or Leadership member needs to create trainings before players can begin.";
     courseMedia.innerHTML = "";
+    renderHeroImage("");
     moduleProgress.textContent = "0 / 0 read";
     quizProgress.textContent = "Not available";
     certificateProgress.textContent = "Locked";
@@ -740,7 +761,8 @@ function render() {
         ? `Passed at ${courseProgress.quizScore}%`
         : `Last score ${courseProgress.quizScore}%`;
 
-  courseMedia.innerHTML = renderMedia(course.imageUrl, course.resourceUrl);
+  renderHeroImage(course.imageUrl);
+  courseMedia.innerHTML = renderMedia("", course.resourceUrl);
 
   renderModules(course);
   renderQuiz(course);
