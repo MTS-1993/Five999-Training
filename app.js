@@ -24,6 +24,7 @@ let selectedService = serviceSections[0];
 let expandedServices = new Set([serviceSections[0]]);
 let selectedCourseId = "";
 let selectedModuleIndex = 0;
+let currentView = "home";
 let progress = {};
 let currentUser = null;
 let currentAccess = null;
@@ -53,6 +54,7 @@ const certificateMessage = document.getElementById("certificateMessage");
 const downloadCertificateButton = document.getElementById("downloadCertificateButton");
 const downloadPdfCertificateButton = document.getElementById("downloadPdfCertificateButton");
 const ticketLink = document.getElementById("ticketLink");
+const landingPanel = document.getElementById("landingPanel");
 const profilePanel = document.getElementById("profilePanel");
 const profileSummary = document.getElementById("profileSummary");
 const profileGrid = document.getElementById("profileGrid");
@@ -160,7 +162,7 @@ function removeOldExampleTrainings(items) {
 }
 
 function getCourse() {
-  return courses.find((course) => course.id === selectedCourseId) || courses[0];
+  return courses.find((course) => course.id === selectedCourseId) || null;
 }
 
 function getCourseProgress(courseId) {
@@ -235,13 +237,14 @@ function renderAccount() {
 
   document.getElementById("dashboardModeButton")?.addEventListener("click", () => {
     adminMode = false;
+    currentView = "home";
     render();
   });
 
   document.getElementById("profileButton").addEventListener("click", () => {
     adminMode = false;
+    currentView = "profile";
     render();
-    profilePanel.hidden = false;
     profilePanel.scrollIntoView({ behavior: "smooth", block: "start" });
   });
 
@@ -671,7 +674,7 @@ async function saveCoursesToServer() {
   courses = Array.isArray(result.courses)
     ? removeOldExampleTrainings(result.courses).map(normalizeCourse)
     : courses;
-  if (!courses.some((course) => course.id === selectedCourseId)) selectedCourseId = courses[0]?.id || "";
+  if (!courses.some((course) => course.id === selectedCourseId)) selectedCourseId = "";
   if (selectedManagerCourseId !== "__new__" && !courses.some((course) => course.id === selectedManagerCourseId)) {
     selectedManagerCourseId = "__new__";
   }
@@ -725,8 +728,6 @@ function renderCourseList() {
         expandedServices.delete(selectedService);
       } else {
         expandedServices.add(selectedService);
-        const firstCourse = courses.find((course) => course.service === selectedService);
-        if (firstCourse) selectedCourseId = firstCourse.id;
       }
       selectedModuleIndex = 0;
       render();
@@ -739,13 +740,15 @@ function renderCourseList() {
       selectedService = getCourse()?.service || selectedService;
       expandedServices.add(selectedService);
       selectedModuleIndex = 0;
+      currentView = "training";
+      adminMode = false;
       render();
     });
   });
 }
 
 function renderProfile() {
-  profilePanel.hidden = !isSignedIn() || adminMode || !courses.length;
+  profilePanel.hidden = !isSignedIn() || adminMode || currentView !== "profile";
   if (profilePanel.hidden) return;
 
   const completed = courses.filter((course) => getCourseProgress(course.id).passed).length;
@@ -1043,21 +1046,43 @@ async function downloadPdfCertificate() {
 
 function render() {
   normalizeCourses();
-  const course = getCourse();
+  let course = getCourse();
+  if (currentView === "training" && !course) {
+    currentView = "home";
+  }
   document.body.classList.toggle("admin-mode", adminMode);
   renderCourseList();
   renderAccount();
+  landingPanel.hidden = adminMode || currentView !== "home";
+  profilePanel.hidden = currentView !== "profile";
   trainingAreas.forEach((area) => {
-    area.hidden = adminMode;
+    area.hidden = adminMode || currentView !== "training";
   });
+
+  if (adminMode) {
+    landingPanel.hidden = true;
+    profilePanel.hidden = true;
+    renderManagement();
+    return;
+  }
+
+  if (currentView === "home") {
+    courseTitle.textContent = "Training Dashboard";
+    renderManagement();
+    return;
+  }
+
+  if (currentView === "profile") {
+    courseTitle.textContent = "My Training Profile";
+    renderProfile();
+    renderManagement();
+    return;
+  }
+
+  course = getCourse();
   if (!course) {
-    courseTitle.textContent = adminMode ? "Training Management" : "No Trainings Created";
-    courseTag.textContent = "Specialist subdivisions";
-    courseHeading.textContent = "No trainings have been added yet.";
-    courseSummary.textContent =
-      canManageTrainings()
-        ? "Open Create/Edit/Delete to add the first training."
-        : "A Command or Leadership member needs to create trainings before players can begin.";
+    currentView = "home";
+    courseTitle.textContent = "Training Dashboard";
     courseMedia.innerHTML = "";
     renderHeroImage("");
     moduleProgress.textContent = "0 / 0 read";
@@ -1068,6 +1093,7 @@ function render() {
     quizForm.innerHTML = "";
     scorePill.textContent = "80% required";
     completionPanel.hidden = true;
+    landingPanel.hidden = false;
     renderManagement();
     return;
   }
@@ -1092,7 +1118,6 @@ function render() {
   renderModules(course);
   renderQuiz(course);
   renderCompletion(course);
-  renderProfile();
   renderManagement();
 }
 
@@ -1169,6 +1194,7 @@ managerCourseSelect.addEventListener("change", () => {
 sidebarAdminButton.addEventListener("click", () => {
   adminMode = true;
   adminView = "editor";
+  currentView = "admin";
   selectedManagerCourseId = "__new__";
   render();
 });
@@ -1176,6 +1202,7 @@ sidebarAdminButton.addEventListener("click", () => {
 sidebarAnalyticsButton.addEventListener("click", () => {
   adminMode = true;
   adminView = "analytics";
+  currentView = "admin";
   render();
 });
 
@@ -1265,11 +1292,12 @@ managerForm.addEventListener("submit", async (event) => {
       ? courses.map((course) => (course.id === nextCourse.id ? nextCourse : course))
       : [...courses, nextCourse];
 
-    selectedService = nextCourse.service;
-    expandedServices.add(selectedService);
-    selectedCourseId = nextCourse.id;
-    selectedManagerCourseId = nextCourse.id;
-    await saveCoursesToServer();
+  selectedService = nextCourse.service;
+  expandedServices.add(selectedService);
+  selectedCourseId = nextCourse.id;
+  selectedManagerCourseId = nextCourse.id;
+  currentView = "admin";
+  await saveCoursesToServer();
     managerResult.textContent = "Training saved.";
     render();
   } catch (error) {
@@ -1293,7 +1321,7 @@ async function init() {
   } else {
     normalizeCourses();
   }
-  selectedCourseId = courses[0]?.id || "";
+  selectedCourseId = "";
   selectedService = courses[0]?.service || serviceSections[0];
   expandedServices.add(selectedService);
   selectedManagerCourseId = "__new__";

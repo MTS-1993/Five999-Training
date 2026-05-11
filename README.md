@@ -5,6 +5,7 @@ A Render-hosted training dashboard for Five999 players to sign in with Discord, 
 ## Features
 
 - Specialist subdivision training modules
+- Intro landing page explaining how players navigate trainings and save completion proof
 - Empty by default, with sidebar sections for:
   - United Kingdom Police Service
   - United Kingdom Ambulance Service
@@ -24,7 +25,7 @@ A Render-hosted training dashboard for Five999 players to sign in with Discord, 
 - Quiz locked until all modules are marked read
 - 80% pass requirement
 - Saved progress and completed trainings by Discord account
-- Player training profile with progress badges for each course
+- Separate player training profile with progress badges for each course
 - Completion message for players to screenshot
 - Downloadable completion certificate with player name, course, date, and Five999 logo
 - Downloadable PDF certificate as well as PNG certificate
