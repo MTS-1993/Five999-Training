@@ -516,6 +516,8 @@ function renderManagement() {
 
   analyticsPanel.hidden = adminView !== "analytics";
   editorPanel.hidden = adminView !== "editor";
+  courseTitle.textContent = adminView === "analytics" ? "Training Analytics" : "Training Management";
+  courseTag.textContent = "Command Area";
 
   managementAccess.textContent = canDeleteTrainings()
     ? adminView === "analytics"
@@ -740,17 +742,19 @@ function renderQuiz(course) {
     .map(
       (item, questionIndex) => `
         <fieldset class="question" ${allRead ? "" : "disabled"}>
-          <legend>${questionIndex + 1}. ${escapeHtml(item.question)}</legend>
-          ${item.answers
-            .map(
-              (answer, answerIndex) => `
-                <label class="answer">
-                  <input type="radio" name="q${questionIndex}" value="${answerIndex}" required />
-                  <span>${escapeHtml(answer)}</span>
-                </label>
-              `,
-            )
-            .join("")}
+          <legend><span>${questionIndex + 1}</span>${escapeHtml(item.question)}</legend>
+          <div class="answer-list">
+            ${item.answers
+              .map(
+                (answer, answerIndex) => `
+                  <label class="answer">
+                    <input class="answer-radio" type="radio" name="q${questionIndex}" value="${answerIndex}" required />
+                    <span class="answer-copy">${escapeHtml(answer)}</span>
+                  </label>
+                `,
+              )
+              .join("")}
+          </div>
         </fieldset>
       `,
     )
@@ -784,12 +788,14 @@ function renderCompletion(course) {
 
   if (!courseProgress.passed) return;
 
+  const displayName = currentUser?.globalName || currentUser?.username || "This player";
   certificateMessage.innerHTML = `
     <strong>${escapeHtml(course.title)} specialist training completed.</strong><br />
+    ${escapeHtml(displayName)} has completed this course.<br />
     ${
       course.quizEnabled === false
         ? "No final quiz was required for this training."
-        : `Player has achieved ${courseProgress.quizScore}% on the final assessment, meeting the ${PASS_MARK}% pass requirement.`
+        : `${escapeHtml(displayName)} has achieved ${courseProgress.quizScore}% on the final assessment, meeting the ${PASS_MARK}% pass requirement.`
     }<br />
     Completed: ${courseProgress.completedAt}<br /><br />
     Please open a support ticket in Discord to obtain the role via FMS.
