@@ -37,18 +37,22 @@ let databaseReady = false;
 app.use(express.json({ limit: "100kb" }));
 
 app.get("/", (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
   res.sendFile(path.join(__dirname, "index.html"));
 });
 
 app.get("/styles.css", (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
   res.sendFile(path.join(__dirname, "styles.css"));
 });
 
 app.get("/app.js", (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
   res.sendFile(path.join(__dirname, "app.js"));
 });
 
 app.get("/assets/five999-training-logo.png", (req, res) => {
+  res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
   res.sendFile(path.join(__dirname, "assets", "five999-training-logo.png"));
 });
 

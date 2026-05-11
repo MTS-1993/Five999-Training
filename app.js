@@ -651,6 +651,7 @@ function renderCourseList() {
           <button class="service-button ${
             expandedServices.has(service) ? "active" : ""
           }" type="button" data-service="${escapeHtml(service)}" aria-expanded="${expandedServices.has(service)}">
+            <strong class="service-toggle">${expandedServices.has(service) ? "-" : "+"}</strong>
             <span>${escapeHtml(service)}</span>
             <small>${serviceCourses.length}</small>
           </button>
