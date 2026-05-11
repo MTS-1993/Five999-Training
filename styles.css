@@ -148,6 +148,18 @@ textarea {
   display: none;
 }
 
+body.admin-mode .course-list {
+  display: none;
+}
+
+body.admin-mode .admin-sidebar-panel {
+  margin-top: 18px;
+}
+
+body.admin-mode .sidebar-footer {
+  margin-top: auto;
+}
+
 .admin-sidebar-panel {
   display: grid;
   gap: 10px;
@@ -705,9 +717,21 @@ h2 {
 
 .manager-layout {
   display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
-  gap: 18px;
+  grid-template-columns: 300px minmax(0, 1fr);
+  align-items: start;
+  gap: 22px;
   margin-top: 18px;
+}
+
+.manager-layout > div:first-child {
+  position: sticky;
+  top: 18px;
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-2);
 }
 
 .analytics-panel {
@@ -783,7 +807,11 @@ h2 {
 
 .manager-form {
   display: grid;
-  gap: 10px;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
 }
 
 .builder-heading {
@@ -791,9 +819,11 @@ h2 {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px solid var(--line);
+  margin-top: 18px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #edf4f8;
 }
 
 .builder-list {
@@ -804,7 +834,7 @@ h2 {
 .builder-card {
   display: grid;
   gap: 10px;
-  padding: 14px;
+  padding: 16px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fbfcfc;

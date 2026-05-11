@@ -357,10 +357,11 @@ function collectQuizBuilder() {
     const correctRawIndex = Number(card.querySelector("[data-correct-answer]").value);
     const correctAnswerText = rawAnswers[correctRawIndex];
     const answers = rawAnswers.filter(Boolean);
+    const mappedCorrectIndex = answers.findIndex((answer) => answer === correctAnswerText);
     return {
       question: card.querySelector("[data-question-text]").value.trim(),
       answers,
-      correct: Math.max(0, answers.findIndex((answer) => answer === correctAnswerText)),
+      correct: mappedCorrectIndex >= 0 ? mappedCorrectIndex : 0,
     };
   });
 }
@@ -415,9 +416,9 @@ function renderModuleBuilder(modules = []) {
             <button class="ghost-button danger-button" type="button" data-remove-module="${index}">Remove</button>
           </div>
           <label class="field-label">Module title</label>
-          <input data-module-title value="${escapeHtml(module.title || "")}" required />
+          <input data-module-title value="${escapeHtml(module.title || "")}" />
           <label class="field-label">Training content</label>
-          <textarea data-module-content rows="5" required>${escapeHtml(
+          <textarea data-module-content rows="5">${escapeHtml(
             module.content || (Array.isArray(module.body) ? module.body.join("\n") : ""),
           )}</textarea>
           <label class="field-label">Image URL</label>
@@ -477,7 +478,7 @@ function renderQuizBuilder(quiz = []) {
             <button class="ghost-button danger-button" type="button" data-remove-question="${index}">Remove</button>
           </div>
           <label class="field-label">Question</label>
-          <input data-question-text value="${escapeHtml(item.question || "")}" required />
+          <input data-question-text value="${escapeHtml(item.question || "")}" />
           <div class="answer-grid">
             ${answers
               .slice(0, 4)
@@ -485,7 +486,7 @@ function renderQuizBuilder(quiz = []) {
                 (answer, answerIndex) => `
                   <label>
                     <span class="field-label">Answer ${answerIndex + 1}</span>
-                    <input data-answer-text value="${escapeHtml(answer)}" required />
+                    <input data-answer-text value="${escapeHtml(answer)}" />
                   </label>
                 `,
               )
@@ -903,6 +904,7 @@ async function downloadCertificate() {
 function render() {
   normalizeCourses();
   const course = getCourse();
+  document.body.classList.toggle("admin-mode", adminMode);
   renderCourseList();
   renderAccount();
   trainingAreas.forEach((area) => {
