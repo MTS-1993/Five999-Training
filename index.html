@@ -24,6 +24,9 @@
           <button class="primary-button" id="sidebarAdminButton" type="button">
             Create/Edit/Delete Trainings
           </button>
+          <button class="ghost-button" id="sidebarAnalyticsButton" type="button">
+            Analytics
+          </button>
         </div>
 
         <div class="sidebar-footer">
@@ -122,7 +125,7 @@
             <span class="score-pill" id="managementAccess">Role locked</span>
           </div>
 
-          <section class="analytics-panel">
+          <section class="analytics-panel" id="analyticsPanel" hidden>
             <div class="panel-heading">
               <div>
                 <p class="eyebrow">Admin analytics</p>
@@ -165,7 +168,7 @@
             </div>
           </section>
 
-          <div class="manager-layout">
+          <div class="manager-layout" id="editorPanel">
             <div>
               <label class="field-label" for="managerCourseSelect">Training</label>
               <select id="managerCourseSelect"></select>

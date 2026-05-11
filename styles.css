@@ -652,6 +652,11 @@ h2 {
   background: var(--surface-2);
 }
 
+.analytics-panel[hidden],
+.manager-layout[hidden] {
+  display: none;
+}
+
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

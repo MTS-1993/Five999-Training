@@ -30,6 +30,7 @@ let currentAccess = null;
 let authConfigured = false;
 let selectedManagerCourseId = "";
 let adminMode = false;
+let adminView = "editor";
 let statsLoaded = false;
 
 const courseList = document.getElementById("courseList");
@@ -67,6 +68,9 @@ const managerResult = document.getElementById("managerResult");
 const trainingAreas = [...document.querySelectorAll(".training-area")];
 const adminSidebarPanel = document.getElementById("adminSidebarPanel");
 const sidebarAdminButton = document.getElementById("sidebarAdminButton");
+const sidebarAnalyticsButton = document.getElementById("sidebarAnalyticsButton");
+const analyticsPanel = document.getElementById("analyticsPanel");
+const editorPanel = document.getElementById("editorPanel");
 const refreshStatsButton = document.getElementById("refreshStatsButton");
 const statsSummary = document.getElementById("statsSummary");
 const statsCourseBody = document.getElementById("statsCourseBody");
@@ -510,9 +514,16 @@ function renderManagement() {
   managementPanel.hidden = !canManageTrainings() || !adminMode;
   if (!canManageTrainings() || !adminMode) return;
 
+  analyticsPanel.hidden = adminView !== "analytics";
+  editorPanel.hidden = adminView !== "editor";
+
   managementAccess.textContent = canDeleteTrainings()
-    ? "Leadership admin rights"
-    : "Command add/edit rights";
+    ? adminView === "analytics"
+      ? "Leadership analytics"
+      : "Leadership admin rights"
+    : adminView === "analytics"
+      ? "Command analytics"
+      : "Command add/edit rights";
   deleteTrainingButton.hidden = !canDeleteTrainings() || !courses.length;
 
   managerService.innerHTML = serviceSections
@@ -535,7 +546,7 @@ function renderManagement() {
     : `<option value="">No trainings created yet</option>`;
 
   fillManagerForm(getManagerCourse());
-  if (!statsLoaded) loadStats();
+  if (adminView === "analytics" && !statsLoaded) loadStats();
 }
 
 function renderEmptyStats(message) {
@@ -909,6 +920,13 @@ managerCourseSelect.addEventListener("change", () => {
 
 sidebarAdminButton.addEventListener("click", () => {
   adminMode = true;
+  adminView = "editor";
+  render();
+});
+
+sidebarAnalyticsButton.addEventListener("click", () => {
+  adminMode = true;
+  adminView = "analytics";
   render();
 });
 
