@@ -48,6 +48,10 @@ app.get("/app.js", (req, res) => {
   res.sendFile(path.join(__dirname, "app.js"));
 });
 
+app.get("/assets/five999-training-logo.png", (req, res) => {
+  res.sendFile(path.join(__dirname, "assets", "five999-training-logo.png"));
+});
+
 function parseCookies(req) {
   return Object.fromEntries(
     (req.headers.cookie || "")

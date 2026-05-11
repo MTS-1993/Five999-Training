@@ -49,24 +49,19 @@ textarea {
 }
 
 .brand {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+  display: block;
 }
 
-.brand-mark {
-  display: grid;
-  place-items: center;
-  width: 54px;
-  height: 54px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  background: var(--red);
+.brand-logo {
+  display: block;
+  width: 100%;
+  max-width: 210px;
+  aspect-ratio: 1;
+  object-fit: contain;
   border-radius: 8px;
-  font-weight: 900;
-  letter-spacing: 0;
+  margin: 0 auto;
 }
 
-.brand p,
 .eyebrow,
 .hero-copy p,
 .progress-strip span,
@@ -76,14 +71,8 @@ textarea {
   font-size: 0.83rem;
 }
 
-.brand p,
 .sidebar-footer {
   color: rgba(248, 251, 252, 0.72);
-}
-
-.brand strong {
-  display: block;
-  margin-top: 3px;
 }
 
 .course-list {

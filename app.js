@@ -234,6 +234,7 @@ let courses = [
 ];
 
 let selectedService = serviceSections[0];
+let expandedServices = new Set([serviceSections[0]]);
 let selectedCourseId = courses[0].id;
 let selectedModuleIndex = 0;
 let progress = {};
@@ -648,12 +649,12 @@ function renderCourseList() {
       return `
         <section class="service-group">
           <button class="service-button ${
-            selectedService === service ? "active" : ""
-          }" type="button" data-service="${escapeHtml(service)}">
+            expandedServices.has(service) ? "active" : ""
+          }" type="button" data-service="${escapeHtml(service)}" aria-expanded="${expandedServices.has(service)}">
             <span>${escapeHtml(service)}</span>
             <small>${serviceCourses.length}</small>
           </button>
-          <div class="service-trainings" ${selectedService === service ? "" : "hidden"}>
+          <div class="service-trainings" ${expandedServices.has(service) ? "" : "hidden"}>
             ${
               serviceCourses.length
                 ? serviceCourses
@@ -683,8 +684,13 @@ function renderCourseList() {
   document.querySelectorAll("[data-service]").forEach((button) => {
     button.addEventListener("click", () => {
       selectedService = button.dataset.service;
-      const firstCourse = courses.find((course) => course.service === selectedService);
-      if (firstCourse) selectedCourseId = firstCourse.id;
+      if (expandedServices.has(selectedService)) {
+        expandedServices.delete(selectedService);
+      } else {
+        expandedServices.add(selectedService);
+        const firstCourse = courses.find((course) => course.service === selectedService);
+        if (firstCourse) selectedCourseId = firstCourse.id;
+      }
       selectedModuleIndex = 0;
       render();
     });
@@ -694,6 +700,7 @@ function renderCourseList() {
     button.addEventListener("click", () => {
       selectedCourseId = button.dataset.course;
       selectedService = getCourse()?.service || selectedService;
+      expandedServices.add(selectedService);
       selectedModuleIndex = 0;
       render();
     });
@@ -889,6 +896,7 @@ newTrainingButton.addEventListener("click", () => {
   const training = createBlankTraining();
   courses.push(training);
   selectedService = training.service;
+  expandedServices.add(selectedService);
   selectedCourseId = training.id;
   selectedManagerCourseId = training.id;
   managerResult.textContent = "New training created. Fill the fields, then save.";
@@ -956,6 +964,7 @@ managerForm.addEventListener("submit", async (event) => {
       : [...courses, nextCourse];
 
     selectedService = nextCourse.service;
+    expandedServices.add(selectedService);
     selectedCourseId = nextCourse.id;
     selectedManagerCourseId = nextCourse.id;
     await saveCoursesToServer();
@@ -984,6 +993,7 @@ async function init() {
   }
   selectedCourseId = courses[0]?.id || "";
   selectedService = courses[0]?.service || serviceSections[0];
+  expandedServices.add(selectedService);
   selectedManagerCourseId = selectedCourseId;
 
   if (isSignedIn()) {
