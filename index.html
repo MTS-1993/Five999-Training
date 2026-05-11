@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Five999 Specialist Training</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Training navigation">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">999</div>
+          <div>
+            <p>Five999</p>
+            <strong>Training Hub</strong>
+          </div>
+        </div>
+
+        <nav class="course-list" id="courseList" aria-label="Specialist subdivisions"></nav>
+
+        <div class="sidebar-footer">
+          <span class="status-dot"></span>
+          <span>Pass mark: 80%</span>
+        </div>
+      </aside>
+
+      <main class="workspace">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Specialist subdivisions</p>
+            <h1 id="courseTitle">Training Dashboard</h1>
+          </div>
+          <div class="account-actions" id="accountActions"></div>
+        </header>
+
+        <section class="auth-panel" id="authPanel" hidden>
+          <div>
+            <p class="eyebrow">Discord required</p>
+            <h2>Sign in to save your specialist training progress.</h2>
+            <p>
+              Your completed modules and passed trainings will be saved against your Discord account.
+            </p>
+          </div>
+          <a class="primary-button" href="/auth/discord">Sign in with Discord</a>
+        </section>
+
+        <section class="hero-panel" aria-label="Selected training overview">
+          <div class="hero-art" aria-hidden="true">
+            <div class="signal-card">
+              <span></span>
+              <span></span>
+              <span></span>
+              <strong>FMS</strong>
+            </div>
+          </div>
+          <div class="hero-copy">
+            <p id="courseTag">Choose a subdivision</p>
+            <h2 id="courseHeading">Complete the briefing, then pass the quiz.</h2>
+            <p id="courseSummary">
+              Pick a specialist training from the left. Your progress is saved to your Discord account.
+            </p>
+          </div>
+        </section>
+
+        <section class="progress-strip" aria-label="Course progress">
+          <div>
+            <span>Briefing</span>
+            <strong id="moduleProgress">0 / 0 read</strong>
+          </div>
+          <div>
+            <span>Quiz</span>
+            <strong id="quizProgress">Not attempted</strong>
+          </div>
+          <div>
+            <span>Certificate</span>
+            <strong id="certificateProgress">Locked</strong>
+          </div>
+        </section>
+
+        <section class="content-grid">
+          <article class="panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Training content</p>
+                <h2>Briefing modules</h2>
+              </div>
+              <button class="primary-button" id="markRead" type="button">Mark Module Read</button>
+            </div>
+            <div class="module-tabs" id="moduleTabs" role="tablist" aria-label="Training modules"></div>
+            <div class="module-body" id="moduleBody"></div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Final assessment</p>
+                <h2>Quiz</h2>
+              </div>
+              <span class="score-pill" id="scorePill">80% required</span>
+            </div>
+            <form class="quiz-form" id="quizForm"></form>
+          </article>
+        </section>
+
+        <section class="completion-panel" id="completionPanel" hidden>
+          <p class="eyebrow">Training complete</p>
+          <h2>Screenshot this confirmation</h2>
+          <div class="certificate" id="certificateMessage"></div>
+          <a class="primary-button ticket-link" id="ticketLink" href="#" target="_blank" rel="noreferrer">
+            Open Five999 Discord Ticket Section
+          </a>
+        </section>
+      </main>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
