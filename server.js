@@ -10,12 +10,17 @@ const SESSION_COOKIE = "five999_session";
 const STATE_COOKIE = "five999_oauth_state";
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 14;
 const DATA_FILE = path.join(__dirname, "data", "progress.json");
+const COURSES_FILE = path.join(__dirname, "data", "courses.json");
 
 const {
   DISCORD_CLIENT_ID,
   DISCORD_CLIENT_SECRET,
   DISCORD_REDIRECT_URI,
   DISCORD_TICKET_URL = "https://discord.com/channels/YOUR_SERVER_ID/YOUR_TICKET_CHANNEL_ID",
+  DISCORD_GUILD_ID,
+  DISCORD_BOT_TOKEN,
+  COMMAND_ROLE_IDS = "",
+  LEADERSHIP_ROLE_IDS = "",
   DATABASE_URL,
   SESSION_SECRET = "replace-this-session-secret-before-production",
 } = process.env;
@@ -118,7 +123,118 @@ async function ensureDatabase() {
       updated_at timestamptz not null default now()
     )
   `);
+  await pool.query(`
+    create table if not exists training_courses (
+      id integer primary key default 1,
+      courses jsonb not null default '[]'::jsonb,
+      updated_at timestamptz not null default now()
+    )
+  `);
   databaseReady = true;
+}
+
+function parseRoleIds(value) {
+  return value
+    .split(",")
+    .map((role) => role.trim())
+    .filter(Boolean);
+}
+
+function hasAnyRole(memberRoleIds, allowedRoleIds) {
+  return allowedRoleIds.some((roleId) => memberRoleIds.includes(roleId));
+}
+
+async function getDiscordRoleIds(discordId) {
+  if (!DISCORD_GUILD_ID || !DISCORD_BOT_TOKEN) return [];
+
+  const response = await fetch(
+    `https://discord.com/api/guilds/${DISCORD_GUILD_ID}/members/${discordId}`,
+    { headers: { Authorization: `Bot ${DISCORD_BOT_TOKEN}` } },
+  );
+
+  if (!response.ok) return [];
+  const member = await response.json();
+  return member.roles || [];
+}
+
+async function getAccess(user) {
+  const roles = await getDiscordRoleIds(user.id);
+  const commandRoles = parseRoleIds(COMMAND_ROLE_IDS);
+  const leadershipRoles = parseRoleIds(LEADERSHIP_ROLE_IDS);
+  const isLeadership = hasAnyRole(roles, leadershipRoles);
+  const isCommand = isLeadership || hasAnyRole(roles, commandRoles);
+
+  return {
+    roles,
+    command: isCommand,
+    leadership: isLeadership,
+    roleChecksConfigured: Boolean(DISCORD_GUILD_ID && DISCORD_BOT_TOKEN),
+  };
+}
+
+function sanitizeCourses(courses) {
+  if (!Array.isArray(courses)) return [];
+
+  return courses.map((course, index) => ({
+    id: String(course.id || `training-${Date.now()}-${index}`).replace(/[^a-z0-9-]/gi, "-"),
+    division: String(course.division || "General"),
+    icon: String(course.icon || "TR").slice(0, 3).toUpperCase(),
+    title: String(course.title || "Untitled Training").slice(0, 90),
+    tag: String(course.tag || "Specialist training").slice(0, 120),
+    summary: String(course.summary || "").slice(0, 500),
+    modules: Array.isArray(course.modules)
+      ? course.modules.map((module) => ({
+          title: String(module.title || "Module").slice(0, 90),
+          body: Array.isArray(module.body)
+            ? module.body.map((point) => String(point).slice(0, 500)).filter(Boolean)
+            : [],
+        }))
+      : [],
+    quiz: Array.isArray(course.quiz)
+      ? course.quiz.map((question) => ({
+          question: String(question.question || "").slice(0, 240),
+          answers: Array.isArray(question.answers)
+            ? question.answers.map((answer) => String(answer).slice(0, 180)).slice(0, 6)
+            : [],
+          correct: Number.isInteger(question.correct) ? question.correct : 0,
+        }))
+      : [],
+  }));
+}
+
+async function getCourses() {
+  if (pool) {
+    await ensureDatabase();
+    const result = await pool.query("select courses from training_courses where id = 1");
+    return result.rows[0]?.courses || [];
+  }
+
+  try {
+    return JSON.parse(await fs.readFile(COURSES_FILE, "utf8"));
+  } catch {
+    return [];
+  }
+}
+
+async function saveCourses(courses) {
+  const sanitized = sanitizeCourses(courses);
+
+  if (pool) {
+    await ensureDatabase();
+    await pool.query(
+      `
+        insert into training_courses (id, courses, updated_at)
+        values (1, $1, now())
+        on conflict (id) do update set courses = excluded.courses, updated_at = now()
+      `,
+      [JSON.stringify(sanitized)],
+    );
+    return sanitized;
+  }
+
+  await fs.mkdir(path.dirname(COURSES_FILE), { recursive: true });
+  await fs.writeFile(COURSES_FILE, JSON.stringify(sanitized, null, 2));
+  return sanitized;
 }
 
 async function readFileStore() {
@@ -179,12 +295,51 @@ app.get("/api/config", (req, res) => {
   res.json({
     discordTicketUrl: DISCORD_TICKET_URL,
     authConfigured: Boolean(DISCORD_CLIENT_ID && DISCORD_CLIENT_SECRET && DISCORD_REDIRECT_URI),
+    roleChecksConfigured: Boolean(DISCORD_GUILD_ID && DISCORD_BOT_TOKEN),
   });
 });
 
-app.get("/api/me", (req, res) => {
+app.get("/api/me", async (req, res, next) => {
   const user = verifySession(parseCookies(req)[SESSION_COOKIE]);
-  res.json({ user });
+  try {
+    res.json({ user, access: user ? await getAccess(user) : null });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/api/courses", async (req, res, next) => {
+  try {
+    res.json({ courses: await getCourses() });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.put("/api/courses", requireUser, async (req, res, next) => {
+  try {
+    const access = await getAccess(req.user);
+    if (!access.command) {
+      res.status(403).json({ error: "Command or Leadership role required." });
+      return;
+    }
+
+    const currentCourses = await getCourses();
+    const incomingCourses = sanitizeCourses(req.body.courses || []);
+
+    if (!access.leadership) {
+      const incomingIds = incomingCourses.map((course) => course.id);
+      const removedExistingTraining = currentCourses.some((course) => !incomingIds.includes(course.id));
+      if (removedExistingTraining) {
+        res.status(403).json({ error: "Only Leadership Team can delete trainings or divisions." });
+        return;
+      }
+    }
+
+    res.json({ courses: await saveCourses(incomingCourses) });
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.get("/api/progress", requireUser, async (req, res, next) => {

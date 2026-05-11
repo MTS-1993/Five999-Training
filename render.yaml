@@ -18,5 +18,13 @@ services:
         sync: false
       - key: DISCORD_TICKET_URL
         sync: false
+      - key: DISCORD_GUILD_ID
+        sync: false
+      - key: DISCORD_BOT_TOKEN
+        sync: false
+      - key: COMMAND_ROLE_IDS
+        sync: false
+      - key: LEADERSHIP_ROLE_IDS
+        sync: false
       - key: DATABASE_URL
         sync: false

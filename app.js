@@ -1,7 +1,7 @@
 let DISCORD_TICKET_URL = "https://discord.com/channels/YOUR_SERVER_ID/YOUR_TICKET_CHANNEL_ID";
 const PASS_MARK = 80;
 
-const courses = [
+let courses = [
   {
     id: "rpu",
     icon: "RP",
@@ -252,7 +252,9 @@ let selectedCourseId = courses[0].id;
 let selectedModuleIndex = 0;
 let progress = {};
 let currentUser = null;
+let currentAccess = null;
 let authConfigured = false;
+let selectedManagerCourseId = "";
 
 const courseList = document.getElementById("courseList");
 const courseTitle = document.getElementById("courseTitle");
@@ -272,6 +274,13 @@ const certificateMessage = document.getElementById("certificateMessage");
 const ticketLink = document.getElementById("ticketLink");
 const accountActions = document.getElementById("accountActions");
 const authPanel = document.getElementById("authPanel");
+const managementPanel = document.getElementById("managementPanel");
+const managementAccess = document.getElementById("managementAccess");
+const managerCourseSelect = document.getElementById("managerCourseSelect");
+const newTrainingButton = document.getElementById("newTrainingButton");
+const deleteTrainingButton = document.getElementById("deleteTrainingButton");
+const managerForm = document.getElementById("managerForm");
+const managerResult = document.getElementById("managerResult");
 
 ticketLink.href = DISCORD_TICKET_URL;
 
@@ -293,6 +302,14 @@ function isSignedIn() {
   return Boolean(currentUser);
 }
 
+function canManageTrainings() {
+  return Boolean(currentAccess?.command);
+}
+
+function canDeleteTrainings() {
+  return Boolean(currentAccess?.leadership);
+}
+
 function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -303,7 +320,7 @@ function escapeHtml(value) {
 }
 
 function getCourse() {
-  return courses.find((course) => course.id === selectedCourseId);
+  return courses.find((course) => course.id === selectedCourseId) || courses[0];
 }
 
 function getCourseProgress(courseId) {
@@ -348,8 +365,13 @@ function renderAccount() {
   }
 
   const displayName = escapeHtml(currentUser.globalName || currentUser.username);
+  const roleLabel = currentAccess?.leadership
+    ? "Leadership Team"
+    : currentAccess?.command
+      ? "Command"
+      : "Player";
   accountActions.innerHTML = `
-    <span class="account-chip">Signed in as <strong>${displayName}</strong></span>
+    <span class="account-chip">Signed in as <strong>${displayName}</strong> &middot; ${roleLabel}</span>
     <button class="ghost-button" id="resetProgress" type="button" title="Clear saved progress">Reset Progress</button>
     <button class="ghost-button" id="logoutButton" type="button">Log Out</button>
   `;
@@ -367,7 +389,92 @@ function renderAccount() {
   });
 }
 
+function stringifyForEditor(value) {
+  return JSON.stringify(value, null, 2);
+}
+
+function createBlankTraining() {
+  return {
+    id: `training-${Date.now()}`,
+    division: "New Division",
+    icon: "TR",
+    title: "New Specialist Training",
+    tag: "Specialist training",
+    summary: "Add the training summary here.",
+    modules: [
+      {
+        title: "Module One",
+        body: ["Add the first briefing point here.", "Add another briefing point here."],
+      },
+    ],
+    quiz: [
+      {
+        question: "Add your first quiz question here.",
+        answers: ["Correct answer", "Incorrect answer", "Incorrect answer", "Incorrect answer"],
+        correct: 0,
+      },
+    ],
+  };
+}
+
+function getManagerCourse() {
+  return courses.find((course) => course.id === selectedManagerCourseId) || courses[0];
+}
+
+function fillManagerForm(course) {
+  if (!course) return;
+  managerForm.elements.division.value = course.division || "General";
+  managerForm.elements.title.value = course.title || "";
+  managerForm.elements.tag.value = course.tag || "";
+  managerForm.elements.icon.value = course.icon || "TR";
+  managerForm.elements.summary.value = course.summary || "";
+  managerForm.elements.modules.value = stringifyForEditor(course.modules || []);
+  managerForm.elements.quiz.value = stringifyForEditor(course.quiz || []);
+}
+
+function renderManagement() {
+  managementPanel.hidden = !canManageTrainings();
+  if (!canManageTrainings()) return;
+
+  managementAccess.textContent = canDeleteTrainings()
+    ? "Leadership admin rights"
+    : "Command add/edit rights";
+  deleteTrainingButton.hidden = !canDeleteTrainings();
+
+  if (!selectedManagerCourseId || !courses.some((course) => course.id === selectedManagerCourseId)) {
+    selectedManagerCourseId = courses[0]?.id || "";
+  }
+
+  managerCourseSelect.innerHTML = courses
+    .map(
+      (course) =>
+        `<option value="${escapeHtml(course.id)}" ${
+          course.id === selectedManagerCourseId ? "selected" : ""
+        }>${escapeHtml(course.division || "General")} - ${escapeHtml(course.title)}</option>`,
+    )
+    .join("");
+
+  fillManagerForm(getManagerCourse());
+}
+
+async function saveCoursesToServer() {
+  const result = await api("/api/courses", {
+    method: "PUT",
+    body: JSON.stringify({ courses }),
+  });
+  courses = result.courses?.length ? result.courses : courses;
+  if (!courses.some((course) => course.id === selectedCourseId)) selectedCourseId = courses[0]?.id || "";
+  if (!courses.some((course) => course.id === selectedManagerCourseId)) {
+    selectedManagerCourseId = courses[0]?.id || "";
+  }
+}
+
 function renderCourseList() {
+  if (!courses.length) {
+    courseList.innerHTML = "";
+    return;
+  }
+
   courseList.innerHTML = courses
     .map((course) => {
       const courseProgress = getCourseProgress(course.id);
@@ -376,8 +483,8 @@ function renderCourseList() {
         <button class="course-button ${isActive ? "active" : ""}" type="button" data-course="${course.id}">
           <span class="course-icon">${course.icon}</span>
           <span>
-            <strong>${course.title}</strong>
-            <small>${course.tag}</small>
+            <strong>${escapeHtml(course.title)}</strong>
+            <small>${escapeHtml(course.tag)}</small>
           </span>
           <span class="course-state ${courseProgress.passed ? "complete" : ""}" aria-label="${courseProgress.passed ? "Completed" : "Incomplete"}"></span>
         </button>
@@ -395,13 +502,14 @@ function renderCourseList() {
 }
 
 function renderModules(course) {
+  if (!course) return;
   const courseProgress = getCourseProgress(course.id);
   moduleTabs.innerHTML = course.modules
     .map((module, index) => {
       const read = courseProgress.readModules.includes(index);
       const active = selectedModuleIndex === index;
       return `<button class="module-tab ${active ? "active" : ""}" type="button" data-module="${index}">
-        ${read ? "✓ " : ""}${module.title}
+        ${read ? "Read: " : ""}${escapeHtml(module.title)}
       </button>`;
     })
     .join("");
@@ -415,8 +523,8 @@ function renderModules(course) {
 
   const module = course.modules[selectedModuleIndex];
   moduleBody.innerHTML = `
-    <h3>${module.title}</h3>
-    <ul>${module.body.map((point) => `<li>${point}</li>`).join("")}</ul>
+    <h3>${escapeHtml(module.title)}</h3>
+    <ul>${module.body.map((point) => `<li>${escapeHtml(point)}</li>`).join("")}</ul>
   `;
 
   markRead.textContent = courseProgress.readModules.includes(selectedModuleIndex)
@@ -426,6 +534,7 @@ function renderModules(course) {
 }
 
 function renderQuiz(course) {
+  if (!course) return;
   const courseProgress = getCourseProgress(course.id);
   const allRead = isSignedIn() && courseProgress.readModules.length === course.modules.length;
 
@@ -433,13 +542,13 @@ function renderQuiz(course) {
     .map(
       (item, questionIndex) => `
         <fieldset class="question" ${allRead ? "" : "disabled"}>
-          <legend>${questionIndex + 1}. ${item.question}</legend>
+          <legend>${questionIndex + 1}. ${escapeHtml(item.question)}</legend>
           ${item.answers
             .map(
               (answer, answerIndex) => `
                 <label class="answer">
                   <input type="radio" name="q${questionIndex}" value="${answerIndex}" required />
-                  <span>${answer}</span>
+                  <span>${escapeHtml(answer)}</span>
                 </label>
               `,
             )
@@ -470,6 +579,7 @@ function renderQuiz(course) {
 }
 
 function renderCompletion(course) {
+  if (!course) return;
   const courseProgress = getCourseProgress(course.id);
   completionPanel.hidden = !courseProgress.passed;
   certificateProgress.textContent = courseProgress.passed ? "Unlocked" : "Locked";
@@ -477,7 +587,7 @@ function renderCompletion(course) {
   if (!courseProgress.passed) return;
 
   certificateMessage.innerHTML = `
-    <strong>${course.title} specialist training completed.</strong><br />
+    <strong>${escapeHtml(course.title)} specialist training completed.</strong><br />
     Player has achieved ${courseProgress.quizScore}% on the final assessment, meeting the ${PASS_MARK}% pass requirement.<br />
     Completed: ${courseProgress.completedAt}<br /><br />
     Please open a support ticket in Discord to obtain the role via FMS.
@@ -486,6 +596,7 @@ function renderCompletion(course) {
 
 function render() {
   const course = getCourse();
+  if (!course) return;
   const courseProgress = getCourseProgress(course.id);
 
   courseTitle.textContent = course.title;
@@ -505,6 +616,7 @@ function render() {
   renderModules(course);
   renderQuiz(course);
   renderCompletion(course);
+  renderManagement();
 }
 
 markRead.addEventListener("click", () => {
@@ -562,6 +674,68 @@ quizForm.addEventListener("submit", (event) => {
   }
 });
 
+managerCourseSelect.addEventListener("change", () => {
+  selectedManagerCourseId = managerCourseSelect.value;
+  fillManagerForm(getManagerCourse());
+});
+
+newTrainingButton.addEventListener("click", async () => {
+  if (!canManageTrainings()) return;
+  const training = createBlankTraining();
+  courses.push(training);
+  selectedCourseId = training.id;
+  selectedManagerCourseId = training.id;
+  managerResult.textContent = "New training created. Edit it, then save.";
+  render();
+});
+
+deleteTrainingButton.addEventListener("click", async () => {
+  if (!canDeleteTrainings()) return;
+  const course = getManagerCourse();
+  if (!course) return;
+  if (!window.confirm(`Delete ${course.title}? This is restricted to Leadership Team.`)) return;
+
+  courses = courses.filter((item) => item.id !== course.id);
+  selectedCourseId = courses[0]?.id || "";
+  selectedManagerCourseId = selectedCourseId;
+  await saveCoursesToServer();
+  managerResult.textContent = "Training deleted.";
+  render();
+});
+
+managerForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!canManageTrainings()) return;
+
+  try {
+    const modules = JSON.parse(managerForm.elements.modules.value);
+    const quiz = JSON.parse(managerForm.elements.quiz.value);
+    const existing = getManagerCourse();
+    const nextCourse = {
+      id: existing?.id || `training-${Date.now()}`,
+      division: managerForm.elements.division.value,
+      title: managerForm.elements.title.value,
+      tag: managerForm.elements.tag.value,
+      icon: managerForm.elements.icon.value,
+      summary: managerForm.elements.summary.value,
+      modules,
+      quiz,
+    };
+
+    courses = courses.some((course) => course.id === nextCourse.id)
+      ? courses.map((course) => (course.id === nextCourse.id ? nextCourse : course))
+      : [...courses, nextCourse];
+
+    selectedCourseId = nextCourse.id;
+    selectedManagerCourseId = nextCourse.id;
+    await saveCoursesToServer();
+    managerResult.textContent = "Training saved.";
+    render();
+  } catch (error) {
+    managerResult.textContent = "Check the module or quiz JSON, then try again.";
+  }
+});
+
 async function init() {
   const config = await api("/api/config");
   DISCORD_TICKET_URL = config.discordTicketUrl || DISCORD_TICKET_URL;
@@ -570,6 +744,14 @@ async function init() {
 
   const me = await api("/api/me");
   currentUser = me.user;
+  currentAccess = me.access;
+
+  const savedCourses = await api("/api/courses");
+  if (savedCourses.courses?.length) {
+    courses = savedCourses.courses;
+  }
+  selectedCourseId = courses[0]?.id || "";
+  selectedManagerCourseId = selectedCourseId;
 
   if (isSignedIn()) {
     const saved = await api("/api/progress");

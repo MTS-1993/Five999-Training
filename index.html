@@ -111,6 +111,55 @@
             Open Five999 Discord Ticket Section
           </a>
         </section>
+
+        <section class="management-panel" id="managementPanel" hidden>
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Command tools</p>
+              <h2>Training Management</h2>
+            </div>
+            <span class="score-pill" id="managementAccess">Role locked</span>
+          </div>
+
+          <div class="manager-layout">
+            <div>
+              <label class="field-label" for="managerCourseSelect">Training</label>
+              <select id="managerCourseSelect"></select>
+              <div class="manager-actions">
+                <button class="ghost-button" id="newTrainingButton" type="button">New Training</button>
+                <button class="ghost-button danger-button" id="deleteTrainingButton" type="button">Delete Training</button>
+              </div>
+            </div>
+
+            <form class="manager-form" id="managerForm">
+              <label class="field-label" for="managerDivision">Division</label>
+              <input id="managerDivision" name="division" placeholder="Roads Policing Unit" required />
+
+              <label class="field-label" for="managerTitle">Training title</label>
+              <input id="managerTitle" name="title" placeholder="Advanced Pursuit Training" required />
+
+              <label class="field-label" for="managerTag">Short tag</label>
+              <input id="managerTag" name="tag" placeholder="Traffic specialist training" required />
+
+              <label class="field-label" for="managerIcon">Icon letters</label>
+              <input id="managerIcon" name="icon" placeholder="RP" maxlength="3" required />
+
+              <label class="field-label" for="managerSummary">Summary</label>
+              <textarea id="managerSummary" name="summary" rows="3" required></textarea>
+
+              <label class="field-label" for="managerModules">Modules JSON</label>
+              <textarea id="managerModules" name="modules" rows="8" required></textarea>
+
+              <label class="field-label" for="managerQuiz">Quiz JSON</label>
+              <textarea id="managerQuiz" name="quiz" rows="8" required></textarea>
+
+              <div class="manager-actions">
+                <button class="primary-button" type="submit">Save Training</button>
+                <p class="result-text" id="managerResult"></p>
+              </div>
+            </form>
+          </div>
+        </section>
       </main>
     </div>
 
