@@ -43,7 +43,7 @@ const pool = DATABASE_URL
 
 let databaseReady = false;
 
-app.use(express.json({ limit: "100kb" }));
+app.use(express.json({ limit: "10mb" }));
 
 app.get("/", (req, res) => {
   res.setHeader("Cache-Control", "no-store");
@@ -164,6 +164,9 @@ function hasAnyRole(memberRoleIds, allowedRoleIds) {
 function sanitizeUrl(value) {
   const url = String(value || "").trim().slice(0, 1000);
   if (!url) return "";
+  if (/^data:image\/(png|jpeg|jpg|webp|gif);base64,[a-z0-9+/=]+$/i.test(url)) {
+    return String(value || "").trim().slice(0, 5_000_000);
+  }
   try {
     const parsed = new URL(url);
     return ["http:", "https:"].includes(parsed.protocol) ? url : "";
@@ -213,6 +216,7 @@ function sanitizeCourses(courses) {
     summary: String(course.summary || "").slice(0, 500),
     imageUrl: sanitizeUrl(course.imageUrl),
     resourceUrl: sanitizeUrl(course.resourceUrl),
+    quizEnabled: course.quizEnabled !== false,
     modules: Array.isArray(course.modules)
       ? course.modules.map((module) => ({
           title: String(module.title || "Module").slice(0, 90),

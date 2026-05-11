@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Five999 Specialist Training</title>
-    <link rel="stylesheet" href="styles.css?v=20260511-4" />
+    <link rel="stylesheet" href="styles.css?v=20260511-5" />
   </head>
   <body>
     <div class="app-shell">
@@ -12,7 +12,7 @@
         <div class="brand">
           <img
             class="brand-logo"
-            src="assets/five999-training-logo.png?v=20260511-4"
+            src="assets/five999-training-logo.png?v=20260511-5"
             alt="Five999 Training"
           />
         </div>
@@ -161,8 +161,16 @@
               <label class="field-label" for="managerImageUrl">Image URL</label>
               <input id="managerImageUrl" name="imageUrl" placeholder="https://example.com/image.png" />
 
+              <label class="field-label" for="managerImageUpload">Upload training image</label>
+              <input id="managerImageUpload" name="imageUpload" type="file" accept="image/*" />
+
               <label class="field-label" for="managerResourceUrl">Resource URL</label>
               <input id="managerResourceUrl" name="resourceUrl" placeholder="https://example.com/policy-or-document" />
+
+              <label class="toggle-row">
+                <input id="managerQuizEnabled" name="quizEnabled" type="checkbox" checked />
+                <span>Require quiz for this training</span>
+              </label>
 
               <div class="builder-heading">
                 <div>
@@ -192,6 +200,6 @@
       </main>
     </div>
 
-    <script src="app.js?v=20260511-4"></script>
+    <script src="app.js?v=20260511-5"></script>
   </body>
 </html>

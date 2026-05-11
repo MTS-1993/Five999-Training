@@ -106,6 +106,7 @@ function escapeHtml(value) {
 function safeUrl(value) {
   const url = String(value || "").trim();
   if (!url) return "";
+  if (/^data:image\/(png|jpeg|jpg|webp|gif);base64,/i.test(url)) return url;
   try {
     const parsed = new URL(url);
     return ["http:", "https:"].includes(parsed.protocol) ? url : "";
@@ -121,6 +122,7 @@ function normalizeCourse(course) {
     division: course.division || "General",
     imageUrl: course.imageUrl || "",
     resourceUrl: course.resourceUrl || "",
+    quizEnabled: course.quizEnabled !== false,
     modules: (course.modules || []).map((module) => ({
       ...module,
       content: module.content || (Array.isArray(module.body) ? module.body.join("\n") : ""),
@@ -233,6 +235,7 @@ function createBlankTraining() {
     summary: "Add the training summary here.",
     imageUrl: "",
     resourceUrl: "",
+    quizEnabled: true,
     modules: [
       {
         title: "Module One",
@@ -287,7 +290,9 @@ function fillManagerForm(course) {
     managerForm.elements.icon.value = "TR";
     managerForm.elements.summary.value = "";
     managerForm.elements.imageUrl.value = "";
+    managerForm.elements.imageUpload.value = "";
     managerForm.elements.resourceUrl.value = "";
+    managerForm.elements.quizEnabled.checked = true;
     renderModuleBuilder([]);
     renderQuizBuilder([]);
     return;
@@ -300,7 +305,9 @@ function fillManagerForm(course) {
   managerForm.elements.icon.value = normalized.icon || "TR";
   managerForm.elements.summary.value = normalized.summary || "";
   managerForm.elements.imageUrl.value = normalized.imageUrl || "";
+  managerForm.elements.imageUpload.value = "";
   managerForm.elements.resourceUrl.value = normalized.resourceUrl || "";
+  managerForm.elements.quizEnabled.checked = normalized.quizEnabled !== false;
   renderModuleBuilder(normalized.modules);
   renderQuizBuilder(normalized.quiz);
 }
@@ -320,6 +327,42 @@ function collectQuizBuilder() {
     answers: [...card.querySelectorAll("[data-answer-text]")].map((input) => input.value),
     correct: Number(card.querySelector("[data-correct-answer]").value),
   }));
+}
+
+function readImageFile(file) {
+  return new Promise((resolve, reject) => {
+    if (!file) {
+      resolve("");
+      return;
+    }
+    if (!file.type.startsWith("image/")) {
+      reject(new Error("Only image files can be uploaded."));
+      return;
+    }
+    if (file.size > 4 * 1024 * 1024) {
+      reject(new Error("Images must be under 4MB."));
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error("Image upload failed."));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function applyUploadedImagesToModules(modules) {
+  const cards = [...moduleBuilder.querySelectorAll(".builder-card")];
+  return Promise.all(
+    modules.map(async (module, index) => {
+      const file = cards[index]?.querySelector("[data-module-upload]")?.files?.[0];
+      const uploadedImage = await readImageFile(file);
+      return {
+        ...module,
+        imageUrl: uploadedImage || module.imageUrl,
+      };
+    }),
+  );
 }
 
 function renderModuleBuilder(modules = []) {
@@ -343,8 +386,13 @@ function renderModuleBuilder(modules = []) {
           )}</textarea>
           <label class="field-label">Image URL</label>
           <input data-module-image value="${escapeHtml(module.imageUrl || "")}" placeholder="https://example.com/module-image.png" />
+          <label class="field-label">Upload module image</label>
+          <input data-module-upload type="file" accept="image/*" />
           <label class="field-label">Resource URL</label>
           <input data-module-resource value="${escapeHtml(module.resourceUrl || "")}" placeholder="https://example.com/resource" />
+          <div class="manager-actions">
+            <button class="ghost-button" type="button" data-add-module-after="${index}">Add Module Below</button>
+          </div>
         </div>
       `,
     )
@@ -354,6 +402,18 @@ function renderModuleBuilder(modules = []) {
     button.addEventListener("click", () => {
       const modules = collectModuleBuilder();
       modules.splice(Number(button.dataset.removeModule), 1);
+      renderModuleBuilder(modules);
+    });
+  });
+  moduleBuilder.querySelectorAll("[data-add-module-after]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const modules = collectModuleBuilder();
+      modules.splice(Number(button.dataset.addModuleAfter) + 1, 0, {
+        title: `Module ${modules.length + 1}`,
+        content: "",
+        imageUrl: "",
+        resourceUrl: "",
+      });
       renderModuleBuilder(modules);
     });
   });
@@ -569,6 +629,11 @@ function renderModules(course) {
 
 function renderQuiz(course) {
   if (!course) return;
+  if (course.quizEnabled === false) {
+    quizForm.innerHTML = `<p class="result-text">No quiz is required for this training.</p>`;
+    scorePill.textContent = "Quiz disabled";
+    return;
+  }
   const courseProgress = getCourseProgress(course.id);
   const allRead = isSignedIn() && courseProgress.readModules.length === course.modules.length;
 
@@ -622,7 +687,11 @@ function renderCompletion(course) {
 
   certificateMessage.innerHTML = `
     <strong>${escapeHtml(course.title)} specialist training completed.</strong><br />
-    Player has achieved ${courseProgress.quizScore}% on the final assessment, meeting the ${PASS_MARK}% pass requirement.<br />
+    ${
+      course.quizEnabled === false
+        ? "No final quiz was required for this training."
+        : `Player has achieved ${courseProgress.quizScore}% on the final assessment, meeting the ${PASS_MARK}% pass requirement.`
+    }<br />
     Completed: ${courseProgress.completedAt}<br /><br />
     Please open a support ticket in Discord to obtain the role via FMS.
   `;
@@ -685,6 +754,15 @@ markRead.addEventListener("click", () => {
   if (!courseProgress.readModules.includes(selectedModuleIndex)) {
     courseProgress.readModules.push(selectedModuleIndex);
     courseProgress.readModules.sort((a, b) => a - b);
+    const course = getCourse();
+    if (course?.quizEnabled === false && courseProgress.readModules.length === course.modules.length) {
+      courseProgress.quizScore = null;
+      courseProgress.passed = true;
+      courseProgress.completedAt = new Date().toLocaleString("en-GB", {
+        dateStyle: "medium",
+        timeStyle: "short",
+      });
+    }
     saveProgress();
   }
 
@@ -787,13 +865,19 @@ managerForm.addEventListener("submit", async (event) => {
   if (!canManageTrainings()) return;
 
   try {
-    const modules = collectModuleBuilder().filter((module) => module.title && module.content);
+    const modules = (await applyUploadedImagesToModules(collectModuleBuilder())).filter(
+      (module) => module.title && module.content,
+    );
     const quiz = collectQuizBuilder().filter(
       (item) => item.question && item.answers.every((answer) => answer.trim()),
     );
+    const quizEnabled = managerForm.elements.quizEnabled.checked;
+    const uploadedTrainingImage = await readImageFile(managerForm.elements.imageUpload.files[0]);
 
-    if (!modules.length || !quiz.length) {
-      managerResult.textContent = "Add at least one module and one complete quiz question.";
+    if (!modules.length || (quizEnabled && !quiz.length)) {
+      managerResult.textContent = quizEnabled
+        ? "Add at least one module and one complete quiz question."
+        : "Add at least one module.";
       return;
     }
 
@@ -806,8 +890,9 @@ managerForm.addEventListener("submit", async (event) => {
       tag: managerForm.elements.tag.value,
       icon: managerForm.elements.icon.value,
       summary: managerForm.elements.summary.value,
-      imageUrl: managerForm.elements.imageUrl.value,
+      imageUrl: uploadedTrainingImage || managerForm.elements.imageUrl.value,
       resourceUrl: managerForm.elements.resourceUrl.value,
+      quizEnabled,
       modules,
       quiz,
     };
