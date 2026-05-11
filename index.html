@@ -122,6 +122,49 @@
             <span class="score-pill" id="managementAccess">Role locked</span>
           </div>
 
+          <section class="analytics-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Admin analytics</p>
+                <h2>Training Statistics</h2>
+              </div>
+              <button class="ghost-button" id="refreshStatsButton" type="button">Refresh Stats</button>
+            </div>
+            <div class="stats-grid" id="statsSummary"></div>
+            <div class="analytics-table-wrap">
+              <h3>Course Completion</h3>
+              <table class="analytics-table">
+                <thead>
+                  <tr>
+                    <th>Training</th>
+                    <th>Service</th>
+                    <th>Started</th>
+                    <th>Completed</th>
+                    <th>Pass Rate</th>
+                    <th>Avg Score</th>
+                  </tr>
+                </thead>
+                <tbody id="statsCourseBody"></tbody>
+              </table>
+            </div>
+            <div class="analytics-table-wrap">
+              <h3>User Progress</h3>
+              <table class="analytics-table">
+                <thead>
+                  <tr>
+                    <th>User</th>
+                    <th>Started</th>
+                    <th>Completed</th>
+                    <th>Pass Rate</th>
+                    <th>Avg Score</th>
+                    <th>Completed Trainings</th>
+                  </tr>
+                </thead>
+                <tbody id="statsUserBody"></tbody>
+              </table>
+            </div>
+          </section>
+
           <div class="manager-layout">
             <div>
               <label class="field-label" for="managerCourseSelect">Training</label>

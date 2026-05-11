@@ -16,6 +16,7 @@ A Render-hosted training dashboard for Five999 players to sign in with Discord, 
 - Command-only training add/edit tools
 - Leadership-only training and division delete/admin tools
 - Separate role-locked Create/Edit/Delete area, no JSON editing required
+- Role-locked admin analytics for Command and Leadership teams
 - Optional image URLs and resource URLs for trainings and modules
 - Uploaded images for trainings and modules, stored with the training record
 - Quiz requirement can be toggled on or off per training
@@ -62,6 +63,7 @@ Use the same value for `DISCORD_REDIRECT_URI`.
 - Players can complete trainings and save progress.
 - Command members can add and edit trainings from the dashboard.
 - Leadership Team members can add, edit, and delete trainings/divisions from the dashboard.
+- Command and Leadership members can view training statistics, course completion rates, and per-user pass data.
 - Training creators can add modules, quiz questions, image URLs, and resource URLs using buttons and fields.
 - The Add Module Below button appears on each module card for easier editing.
 The app now starts with no example trainings. Importing `database/full-import.sql` also clears the training list to empty.

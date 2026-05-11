@@ -312,6 +312,114 @@ async function getProgress(user) {
   return data[user.id]?.progress || {};
 }
 
+async function getAllProgressRows() {
+  if (pool) {
+    await ensureDatabase();
+    const result = await pool.query(
+      "select discord_id, username, avatar, progress, updated_at from training_progress order by updated_at desc",
+    );
+    return result.rows.map((row) => ({
+      discordId: row.discord_id,
+      username: row.username,
+      avatar: row.avatar,
+      progress: row.progress || {},
+      updatedAt: row.updated_at,
+    }));
+  }
+
+  const data = await readFileStore();
+  return Object.entries(data).map(([discordId, row]) => ({
+    discordId,
+    username: row.username || "Unknown user",
+    avatar: row.avatar || null,
+    progress: row.progress || {},
+    updatedAt: row.updatedAt || null,
+  }));
+}
+
+function buildStats(courses, progressRows) {
+  const courseMap = new Map(courses.map((course) => [course.id, course]));
+  const courseStats = courses.map((course) => ({
+    id: course.id,
+    title: course.title,
+    service: course.service,
+    division: course.division,
+    quizEnabled: course.quizEnabled !== false,
+    started: 0,
+    completed: 0,
+    passed: 0,
+    averageScore: null,
+    passRate: 0,
+  }));
+  const courseStatsMap = new Map(courseStats.map((course) => [course.id, course]));
+
+  const users = progressRows.map((row) => {
+    let started = 0;
+    let completed = 0;
+    let passed = 0;
+    const scores = [];
+    const completedCourses = [];
+
+    for (const [courseId, progress] of Object.entries(row.progress || {})) {
+      const course = courseMap.get(courseId);
+      if (!course) continue;
+      const stats = courseStatsMap.get(courseId);
+      const hasStarted = (progress.readModules || []).length > 0 || progress.quizScore !== null;
+      if (hasStarted) {
+        started += 1;
+        stats.started += 1;
+      }
+      if (progress.passed) {
+        completed += 1;
+        passed += 1;
+        stats.completed += 1;
+        stats.passed += 1;
+        completedCourses.push(course.title);
+      }
+      if (typeof progress.quizScore === "number") {
+        scores.push(progress.quizScore);
+      }
+    }
+
+    return {
+      discordId: row.discordId,
+      username: row.username,
+      started,
+      completed,
+      passed,
+      passRate: completed ? Math.round((passed / completed) * 100) : 0,
+      averageScore: scores.length
+        ? Math.round(scores.reduce((total, score) => total + score, 0) / scores.length)
+        : null,
+      completedCourses,
+      updatedAt: row.updatedAt,
+    };
+  });
+
+  for (const stats of courseStats) {
+    const scores = progressRows
+      .map((row) => row.progress?.[stats.id]?.quizScore)
+      .filter((score) => typeof score === "number");
+    stats.averageScore = scores.length
+      ? Math.round(scores.reduce((total, score) => total + score, 0) / scores.length)
+      : null;
+    stats.passRate = stats.completed ? Math.round((stats.passed / stats.completed) * 100) : 0;
+  }
+
+  return {
+    totals: {
+      users: users.length,
+      trainings: courses.length,
+      completions: users.reduce((total, user) => total + user.completed, 0),
+      averageUserPassRate: users.length
+        ? Math.round(users.reduce((total, user) => total + user.passRate, 0) / users.length)
+        : 0,
+    },
+    courses: courseStats,
+    users,
+  };
+}
+
 async function saveProgress(user, progress) {
   if (pool) {
     await ensureDatabase();
@@ -386,6 +494,20 @@ app.put("/api/courses", requireUser, async (req, res, next) => {
     }
 
     res.json({ courses: await saveCourses(incomingCourses) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/api/stats", requireUser, async (req, res, next) => {
+  try {
+    const access = await getAccess(req.user);
+    if (!access.command) {
+      res.status(403).json({ error: "Command or Leadership role required." });
+      return;
+    }
+
+    res.json({ stats: buildStats(await getCourses(), await getAllProgressRows()) });
   } catch (error) {
     next(error);
   }

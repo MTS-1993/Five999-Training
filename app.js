@@ -30,6 +30,7 @@ let currentAccess = null;
 let authConfigured = false;
 let selectedManagerCourseId = "";
 let adminMode = false;
+let statsLoaded = false;
 
 const courseList = document.getElementById("courseList");
 const courseTitle = document.getElementById("courseTitle");
@@ -66,6 +67,10 @@ const managerResult = document.getElementById("managerResult");
 const trainingAreas = [...document.querySelectorAll(".training-area")];
 const adminSidebarPanel = document.getElementById("adminSidebarPanel");
 const sidebarAdminButton = document.getElementById("sidebarAdminButton");
+const refreshStatsButton = document.getElementById("refreshStatsButton");
+const statsSummary = document.getElementById("statsSummary");
+const statsCourseBody = document.getElementById("statsCourseBody");
+const statsUserBody = document.getElementById("statsUserBody");
 
 ticketLink.href = DISCORD_TICKET_URL;
 
@@ -530,6 +535,69 @@ function renderManagement() {
     : `<option value="">No trainings created yet</option>`;
 
   fillManagerForm(getManagerCourse());
+  if (!statsLoaded) loadStats();
+}
+
+function renderEmptyStats(message) {
+  statsSummary.innerHTML = `<div class="stat-card"><span>Status</span><strong>${escapeHtml(message)}</strong></div>`;
+  statsCourseBody.innerHTML = `<tr><td colspan="6">${escapeHtml(message)}</td></tr>`;
+  statsUserBody.innerHTML = `<tr><td colspan="6">${escapeHtml(message)}</td></tr>`;
+}
+
+function renderStats(stats) {
+  const totals = stats.totals || {};
+  statsSummary.innerHTML = `
+    <div class="stat-card"><span>Users tracked</span><strong>${totals.users || 0}</strong></div>
+    <div class="stat-card"><span>Trainings</span><strong>${totals.trainings || 0}</strong></div>
+    <div class="stat-card"><span>Completions</span><strong>${totals.completions || 0}</strong></div>
+    <div class="stat-card"><span>Avg pass rate</span><strong>${totals.averageUserPassRate || 0}%</strong></div>
+  `;
+
+  statsCourseBody.innerHTML = stats.courses?.length
+    ? stats.courses
+        .map(
+          (course) => `
+            <tr>
+              <td>${escapeHtml(course.title)}</td>
+              <td>${escapeHtml(course.service)}</td>
+              <td>${course.started}</td>
+              <td>${course.completed}</td>
+              <td>${course.passRate}%</td>
+              <td>${course.averageScore === null ? "N/A" : `${course.averageScore}%`}</td>
+            </tr>
+          `,
+        )
+        .join("")
+    : `<tr><td colspan="6">No trainings have been created yet.</td></tr>`;
+
+  statsUserBody.innerHTML = stats.users?.length
+    ? stats.users
+        .map(
+          (user) => `
+            <tr>
+              <td>${escapeHtml(user.username)}</td>
+              <td>${user.started}</td>
+              <td>${user.completed}</td>
+              <td>${user.passRate}%</td>
+              <td>${user.averageScore === null ? "N/A" : `${user.averageScore}%`}</td>
+              <td>${escapeHtml((user.completedCourses || []).join(", ") || "None")}</td>
+            </tr>
+          `,
+        )
+        .join("")
+    : `<tr><td colspan="6">No player progress has been saved yet.</td></tr>`;
+}
+
+async function loadStats() {
+  if (!canManageTrainings()) return;
+  renderEmptyStats("Loading statistics...");
+  try {
+    const result = await api("/api/stats");
+    renderStats(result.stats);
+    statsLoaded = true;
+  } catch (error) {
+    renderEmptyStats("Could not load statistics.");
+  }
 }
 
 async function saveCoursesToServer() {
@@ -842,6 +910,11 @@ managerCourseSelect.addEventListener("change", () => {
 sidebarAdminButton.addEventListener("click", () => {
   adminMode = true;
   render();
+});
+
+refreshStatsButton.addEventListener("click", () => {
+  statsLoaded = false;
+  loadStats();
 });
 
 newTrainingButton.addEventListener("click", () => {
