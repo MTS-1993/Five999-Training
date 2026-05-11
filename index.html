@@ -60,6 +60,7 @@
             <p id="courseSummary">
               Pick a specialist training from the left. Your progress is saved to your Discord account.
             </p>
+            <div class="course-media" id="courseMedia"></div>
           </div>
         </section>
 
@@ -132,7 +133,10 @@
             </div>
 
             <form class="manager-form" id="managerForm">
-              <label class="field-label" for="managerDivision">Division</label>
+              <label class="field-label" for="managerService">Service section</label>
+              <select id="managerService" name="service" required></select>
+
+              <label class="field-label" for="managerDivision">Subdivision</label>
               <input id="managerDivision" name="division" placeholder="Roads Policing Unit" required />
 
               <label class="field-label" for="managerTitle">Training title</label>
@@ -147,11 +151,29 @@
               <label class="field-label" for="managerSummary">Summary</label>
               <textarea id="managerSummary" name="summary" rows="3" required></textarea>
 
-              <label class="field-label" for="managerModules">Modules JSON</label>
-              <textarea id="managerModules" name="modules" rows="8" required></textarea>
+              <label class="field-label" for="managerImageUrl">Image URL</label>
+              <input id="managerImageUrl" name="imageUrl" placeholder="https://example.com/image.png" />
 
-              <label class="field-label" for="managerQuiz">Quiz JSON</label>
-              <textarea id="managerQuiz" name="quiz" rows="8" required></textarea>
+              <label class="field-label" for="managerResourceUrl">Resource URL</label>
+              <input id="managerResourceUrl" name="resourceUrl" placeholder="https://example.com/policy-or-document" />
+
+              <div class="builder-heading">
+                <div>
+                  <p class="eyebrow">Training builder</p>
+                  <h3>Modules</h3>
+                </div>
+                <button class="ghost-button" id="addModuleButton" type="button">Add Module</button>
+              </div>
+              <div class="builder-list" id="moduleBuilder"></div>
+
+              <div class="builder-heading">
+                <div>
+                  <p class="eyebrow">Assessment builder</p>
+                  <h3>Quiz Questions</h3>
+                </div>
+                <button class="ghost-button" id="addQuestionButton" type="button">Add Question</button>
+              </div>
+              <div class="builder-list" id="quizBuilder"></div>
 
               <div class="manager-actions">
                 <button class="primary-button" type="submit">Save Training</button>

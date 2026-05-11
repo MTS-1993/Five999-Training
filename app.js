@@ -1,38 +1,48 @@
 let DISCORD_TICKET_URL = "https://discord.com/channels/YOUR_SERVER_ID/YOUR_TICKET_CHANNEL_ID";
 const PASS_MARK = 80;
 
+const serviceSections = [
+  "United Kingdom Police Service",
+  "United Kingdom Ambulance Service",
+  "United Kingdom Fire and Rescue Service",
+  "UK Search & Rescue",
+  "UK Highways",
+  "National Transport Police",
+];
+
 let courses = [
   {
     id: "rpu",
+    service: "United Kingdom Police Service",
+    division: "Roads Policing Unit",
     icon: "RP",
     title: "Roads Policing Unit",
     tag: "Traffic specialist training",
     summary:
       "Covers pursuit conduct, traffic stops, scene safety, and specialist road incident standards.",
+    imageUrl: "",
+    resourceUrl: "",
     modules: [
       {
         title: "Role Standards",
-        body: [
-          "Represent the unit with calm, clear radio work and proportionate decision-making.",
-          "Prioritise public safety over the chase, the stop, or the arrest outcome.",
-          "Use FMS notes to record the reason for deployment, evidence gathered, and final action.",
-        ],
+        content:
+          "Represent the unit with calm, clear radio work and proportionate decision-making.\nPrioritise public safety over the chase, the stop, or the arrest outcome.\nUse FMS notes to record the reason for deployment, evidence gathered, and final action.",
+        imageUrl: "",
+        resourceUrl: "",
       },
       {
         title: "Traffic Stops",
-        body: [
-          "Choose a safe location before initiating a stop and keep emergency lighting visible.",
-          "Explain the reason for the stop clearly before requesting documents or checks.",
-          "Escalate only when risk markers, behaviour, or intelligence justify it.",
-        ],
+        content:
+          "Choose a safe location before initiating a stop and keep emergency lighting visible.\nExplain the reason for the stop clearly before requesting documents or checks.\nEscalate only when risk markers, behaviour, or intelligence justify it.",
+        imageUrl: "",
+        resourceUrl: "",
       },
       {
         title: "Pursuits",
-        body: [
-          "Call direction, speed, traffic, weather, and risk changes as the pursuit develops.",
-          "Request authority and specialist assets early where policy requires it.",
-          "Discontinue when the risk to the public outweighs the policing purpose.",
-        ],
+        content:
+          "Call direction, speed, traffic, weather, and risk changes as the pursuit develops.\nRequest authority and specialist assets early where policy requires it.\nDiscontinue when the risk to the public outweighs the policing purpose.",
+        imageUrl: "",
+        resourceUrl: "",
       },
     ],
     quiz: [
@@ -43,12 +53,22 @@ let courses = [
       },
       {
         question: "What should be included in pursuit commentary?",
-        answers: ["Only the vehicle colour", "Direction, speed, traffic, weather, and risk", "Personal opinions", "Nothing unless asked"],
+        answers: [
+          "Only the vehicle colour",
+          "Direction, speed, traffic, weather, and risk",
+          "Personal opinions",
+          "Nothing unless asked",
+        ],
         correct: 1,
       },
       {
         question: "When should a pursuit be discontinued?",
-        answers: ["Never", "Only after fuel runs out", "When public risk outweighs the policing purpose", "When the suspect turns left"],
+        answers: [
+          "Never",
+          "Only after fuel runs out",
+          "When public risk outweighs the policing purpose",
+          "When the suspect turns left",
+        ],
         correct: 2,
       },
       {
@@ -64,190 +84,156 @@ let courses = [
     ],
   },
   {
-    id: "firearms",
-    icon: "AR",
-    title: "Authorised Firearms",
-    tag: "Armed response training",
+    id: "ambulance-clinical-response",
+    service: "United Kingdom Ambulance Service",
+    division: "Clinical Response",
+    icon: "AM",
+    title: "Clinical Response Basics",
+    tag: "Ambulance specialist training",
     summary:
-      "Focuses on threat assessment, containment, communications, and proportionate armed tactics.",
+      "Covers scene safety, patient assessment, handovers, and clinical escalation standards.",
+    imageUrl: "",
+    resourceUrl: "",
     modules: [
       {
-        title: "Threat Assessment",
-        body: [
-          "Identify the subject, weapon type, location, bystanders, and immediate threat level.",
-          "Keep cover and distance where possible while maintaining lawful control of the scene.",
-          "Update command when the threat changes or new intelligence appears.",
-        ],
+        title: "Scene Safety",
+        content:
+          "Assess hazards before approaching the patient.\nRequest police, fire, or highways support where the scene is unsafe.\nKeep clear communication with control throughout the response.",
+        imageUrl: "",
+        resourceUrl: "",
       },
       {
-        title: "Containment",
-        body: [
-          "Set inner and outer cordons to protect the public and preserve tactical options.",
-          "Use clear challenge instructions and allow compliance time where safe.",
-          "Coordinate with negotiators, medical support, and additional units when needed.",
-        ],
-      },
-      {
-        title: "Aftercare",
-        body: [
-          "Secure weapons, provide medical support, and preserve evidence after an incident.",
-          "Log use of force and decision points in FMS as soon as practical.",
-          "Remain professional in public areas and avoid unnecessary weapon display.",
-        ],
+        title: "Patient Handover",
+        content:
+          "Use a structured handover with symptoms, observations, treatment, and risk.\nRecord decisions and patient status clearly in FMS.\nEscalate when the patient's condition changes.",
+        imageUrl: "",
+        resourceUrl: "",
       },
     ],
     quiz: [
       {
-        question: "What is the first priority in an armed deployment?",
-        answers: ["Fast entry", "Threat assessment and public safety", "Using the loudest vehicle", "Avoiding command updates"],
-        correct: 1,
-      },
-      {
-        question: "What should cordons help protect?",
-        answers: ["Only police vehicles", "The public and tactical options", "The suspect's route out", "Radio silence"],
-        correct: 1,
-      },
-      {
-        question: "When should command be updated?",
-        answers: ["Only at the end", "When threat or intelligence changes", "Never", "After leaving the server"],
-        correct: 1,
-      },
-      {
-        question: "What should happen after an armed incident?",
-        answers: ["Secure weapons, provide medical support, preserve evidence", "Leave immediately", "Delete notes", "Ignore witnesses"],
+        question: "What should be assessed before approaching a patient?",
+        answers: ["Scene hazards", "Vehicle colour", "Uniform style", "Fuel level"],
         correct: 0,
       },
       {
-        question: "Where should use of force and decision points be logged?",
-        answers: ["FMS", "Voice chat only", "A meme channel", "Nowhere"],
+        question: "What should a handover include?",
+        answers: ["Symptoms, observations, treatment, and risk", "Only the location", "No details", "Only a name"],
         correct: 0,
       },
     ],
   },
   {
-    id: "cid",
-    icon: "CI",
-    title: "Criminal Investigation",
-    tag: "Investigation specialist training",
-    summary:
-      "Builds consistent standards for evidence handling, interviews, case files, and investigation planning.",
+    id: "fire-incident-command",
+    service: "United Kingdom Fire and Rescue Service",
+    division: "Incident Command",
+    icon: "FR",
+    title: "Incident Command Basics",
+    tag: "Fire and rescue training",
+    summary: "Covers command structure, hazard control, cordons, and multi-agency work.",
+    imageUrl: "",
+    resourceUrl: "",
     modules: [
       {
-        title: "Investigation Planning",
-        body: [
-          "Start with a clear allegation, known facts, unknowns, and proportionate lines of enquiry.",
-          "Record victim, witness, suspect, and scene details before drawing conclusions.",
-          "Keep the investigation focused on evidence, not assumptions.",
-        ],
-      },
-      {
-        title: "Evidence Handling",
-        body: [
-          "Preserve original evidence and note where it came from, who handled it, and when.",
-          "Use screenshots, logs, and statements to support key decisions.",
-          "Do not share sensitive evidence outside approved channels.",
-        ],
-      },
-      {
-        title: "Interviews",
-        body: [
-          "Plan questions before interview and keep the tone professional.",
-          "Put allegations clearly and allow the player a chance to answer.",
-          "Summarise admissions, denials, and next steps in FMS.",
-        ],
+        title: "Command Priorities",
+        content:
+          "Identify life risk, hazards, and available resources.\nSet clear cordons and communicate the plan.\nCoordinate with police, ambulance, and specialist agencies.",
+        imageUrl: "",
+        resourceUrl: "",
       },
     ],
     quiz: [
       {
-        question: "What should an investigation be based on?",
-        answers: ["Evidence", "Rumour", "Assumptions", "Who speaks loudest"],
-        correct: 0,
-      },
-      {
-        question: "What should be recorded for evidence handling?",
-        answers: ["Origin, handler, and time", "Only the file name", "Nothing", "The suspect's favourite car"],
-        correct: 0,
-      },
-      {
-        question: "Where should sensitive evidence be shared?",
-        answers: ["Approved channels only", "Any public chat", "Personal DMs to everyone", "Nowhere, even with command"],
-        correct: 0,
-      },
-      {
-        question: "What should interviews include?",
-        answers: ["Clear allegations and a chance to answer", "Only yes/no shouting", "No planning", "No record"],
-        correct: 0,
-      },
-      {
-        question: "Where should next steps be summarised?",
-        answers: ["FMS", "A private reminder only", "Vehicle notes", "They do not need recording"],
+        question: "What should incident command identify first?",
+        answers: ["Life risk and hazards", "The newest vehicle", "Who arrived last", "A public chat message"],
         correct: 0,
       },
     ],
   },
   {
-    id: "control",
-    icon: "CR",
-    title: "Control Room",
-    tag: "Dispatch and command training",
-    summary:
-      "Covers call grading, radio discipline, unit allocation, and incident oversight.",
+    id: "sar-search-planning",
+    service: "UK Search & Rescue",
+    division: "Search Planning",
+    icon: "SR",
+    title: "Search Planning Basics",
+    tag: "Search and rescue training",
+    summary: "Covers missing person risk, search areas, communications, and recovery planning.",
+    imageUrl: "",
+    resourceUrl: "",
     modules: [
       {
-        title: "Call Grading",
-        body: [
-          "Grade incidents by threat, risk, harm, vulnerability, and available resources.",
-          "Gather enough information to send the right response without delaying urgent help.",
-          "Update grading if the incident escalates or new information changes the risk.",
-        ],
-      },
-      {
-        title: "Radio Discipline",
-        body: [
-          "Keep transmissions brief, structured, and relevant.",
-          "Avoid talking over emergency traffic and acknowledge critical updates.",
-          "Use clear unit identifiers and incident references.",
-        ],
-      },
-      {
-        title: "Resource Allocation",
-        body: [
-          "Allocate units based on skills, location, workload, and incident risk.",
-          "Track who is assigned, who is free, and who needs support.",
-          "Escalate to supervisors when demand exceeds available resources.",
-        ],
+        title: "Search Areas",
+        content:
+          "Build search areas from last known point, risk, terrain, and available teams.\nRecord searched locations and findings.\nEscalate when conditions or risk change.",
+        imageUrl: "",
+        resourceUrl: "",
       },
     ],
     quiz: [
       {
-        question: "What factors should guide call grading?",
-        answers: ["Threat, risk, harm, vulnerability, resources", "Only who called first", "Vehicle colour", "Random choice"],
+        question: "What should search areas be based on?",
+        answers: ["Last known point, risk, terrain, and teams", "Random selection", "Only roads", "Only weather"],
         correct: 0,
       },
+    ],
+  },
+  {
+    id: "highways-traffic-management",
+    service: "UK Highways",
+    division: "Traffic Management",
+    icon: "HW",
+    title: "Traffic Management Basics",
+    tag: "Highways training",
+    summary: "Covers lane closures, scene protection, signage, and incident support.",
+    imageUrl: "",
+    resourceUrl: "",
+    modules: [
       {
-        question: "How should radio transmissions be handled?",
-        answers: ["Brief, structured, and relevant", "As long as possible", "With jokes during emergencies", "Only in text chat"],
+        title: "Scene Protection",
+        content:
+          "Use vehicles and signage to protect responders and road users.\nCoordinate lane closures with police and control.\nReview traffic flow and update closures as risk changes.",
+        imageUrl: "",
+        resourceUrl: "",
+      },
+    ],
+    quiz: [
+      {
+        question: "What is the purpose of traffic management?",
+        answers: ["Protect responders and road users", "Block all roads permanently", "Avoid communication", "Ignore risk"],
         correct: 0,
       },
+    ],
+  },
+  {
+    id: "ntp-rail-response",
+    service: "National Transport Police",
+    division: "Rail Response",
+    icon: "NT",
+    title: "Rail Response Basics",
+    tag: "Transport policing training",
+    summary: "Covers railway incident safety, public order, evidence, and partner coordination.",
+    imageUrl: "",
+    resourceUrl: "",
+    modules: [
       {
-        question: "When should a call grade be updated?",
-        answers: ["When new information changes risk", "Never", "Only next week", "When the incident closes"],
-        correct: 0,
+        title: "Rail Safety",
+        content:
+          "Confirm track safety before entering railway environments.\nCoordinate with control and partner agencies.\nRecord evidence and passenger safety decisions in FMS.",
+        imageUrl: "",
+        resourceUrl: "",
       },
+    ],
+    quiz: [
       {
-        question: "What should control track?",
-        answers: ["Assigned, available, and unsupported units", "Only staff cars", "Nothing", "Private conversations"],
-        correct: 0,
-      },
-      {
-        question: "When should demand be escalated?",
-        answers: ["When it exceeds available resources", "Never", "Only after everyone disconnects", "For every low-risk call"],
+        question: "What should happen before entering railway environments?",
+        answers: ["Confirm track safety", "Run ahead alone", "Ignore control", "Close the incident"],
         correct: 0,
       },
     ],
   },
 ];
 
+let selectedService = serviceSections[0];
 let selectedCourseId = courses[0].id;
 let selectedModuleIndex = 0;
 let progress = {};
@@ -261,6 +247,7 @@ const courseTitle = document.getElementById("courseTitle");
 const courseTag = document.getElementById("courseTag");
 const courseHeading = document.getElementById("courseHeading");
 const courseSummary = document.getElementById("courseSummary");
+const courseMedia = document.getElementById("courseMedia");
 const moduleProgress = document.getElementById("moduleProgress");
 const quizProgress = document.getElementById("quizProgress");
 const certificateProgress = document.getElementById("certificateProgress");
@@ -277,8 +264,13 @@ const authPanel = document.getElementById("authPanel");
 const managementPanel = document.getElementById("managementPanel");
 const managementAccess = document.getElementById("managementAccess");
 const managerCourseSelect = document.getElementById("managerCourseSelect");
+const managerService = document.getElementById("managerService");
 const newTrainingButton = document.getElementById("newTrainingButton");
 const deleteTrainingButton = document.getElementById("deleteTrainingButton");
+const addModuleButton = document.getElementById("addModuleButton");
+const addQuestionButton = document.getElementById("addQuestionButton");
+const moduleBuilder = document.getElementById("moduleBuilder");
+const quizBuilder = document.getElementById("quizBuilder");
 const managerForm = document.getElementById("managerForm");
 const managerResult = document.getElementById("managerResult");
 
@@ -311,12 +303,44 @@ function canDeleteTrainings() {
 }
 
 function escapeHtml(value) {
-  return String(value)
+  return String(value ?? "")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function safeUrl(value) {
+  const url = String(value || "").trim();
+  if (!url) return "";
+  try {
+    const parsed = new URL(url);
+    return ["http:", "https:"].includes(parsed.protocol) ? url : "";
+  } catch {
+    return "";
+  }
+}
+
+function normalizeCourse(course) {
+  return {
+    ...course,
+    service: course.service || serviceSections[0],
+    division: course.division || "General",
+    imageUrl: course.imageUrl || "",
+    resourceUrl: course.resourceUrl || "",
+    modules: (course.modules || []).map((module) => ({
+      ...module,
+      content: module.content || (Array.isArray(module.body) ? module.body.join("\n") : ""),
+      imageUrl: module.imageUrl || "",
+      resourceUrl: module.resourceUrl || "",
+    })),
+    quiz: course.quiz || [],
+  };
+}
+
+function normalizeCourses() {
+  courses = courses.map(normalizeCourse);
 }
 
 function getCourse() {
@@ -389,22 +413,23 @@ function renderAccount() {
   });
 }
 
-function stringifyForEditor(value) {
-  return JSON.stringify(value, null, 2);
-}
-
 function createBlankTraining() {
   return {
     id: `training-${Date.now()}`,
-    division: "New Division",
+    service: selectedService || serviceSections[0],
+    division: "New Subdivision",
     icon: "TR",
     title: "New Specialist Training",
     tag: "Specialist training",
     summary: "Add the training summary here.",
+    imageUrl: "",
+    resourceUrl: "",
     modules: [
       {
         title: "Module One",
-        body: ["Add the first briefing point here.", "Add another briefing point here."],
+        content: "Add the briefing content here.",
+        imageUrl: "",
+        resourceUrl: "",
       },
     ],
     quiz: [
@@ -421,15 +446,158 @@ function getManagerCourse() {
   return courses.find((course) => course.id === selectedManagerCourseId) || courses[0];
 }
 
+function renderMedia(imageUrl, resourceUrl) {
+  const parts = [];
+  const safeImageUrl = safeUrl(imageUrl);
+  const safeResourceUrl = safeUrl(resourceUrl);
+  if (safeImageUrl) {
+    parts.push(`<img class="training-image" src="${escapeHtml(safeImageUrl)}" alt="" loading="lazy" />`);
+  }
+  if (safeResourceUrl) {
+    parts.push(
+      `<a class="resource-link" href="${escapeHtml(safeResourceUrl)}" target="_blank" rel="noreferrer">Open Resource</a>`,
+    );
+  }
+  return parts.join("");
+}
+
+function modulePoints(module) {
+  const content = module.content || (Array.isArray(module.body) ? module.body.join("\n") : "");
+  return content
+    .split("\n")
+    .map((point) => point.trim())
+    .filter(Boolean);
+}
+
 function fillManagerForm(course) {
   if (!course) return;
-  managerForm.elements.division.value = course.division || "General";
-  managerForm.elements.title.value = course.title || "";
-  managerForm.elements.tag.value = course.tag || "";
-  managerForm.elements.icon.value = course.icon || "TR";
-  managerForm.elements.summary.value = course.summary || "";
-  managerForm.elements.modules.value = stringifyForEditor(course.modules || []);
-  managerForm.elements.quiz.value = stringifyForEditor(course.quiz || []);
+  const normalized = normalizeCourse(course);
+  managerForm.elements.service.value = normalized.service;
+  managerForm.elements.division.value = normalized.division;
+  managerForm.elements.title.value = normalized.title || "";
+  managerForm.elements.tag.value = normalized.tag || "";
+  managerForm.elements.icon.value = normalized.icon || "TR";
+  managerForm.elements.summary.value = normalized.summary || "";
+  managerForm.elements.imageUrl.value = normalized.imageUrl || "";
+  managerForm.elements.resourceUrl.value = normalized.resourceUrl || "";
+  renderModuleBuilder(normalized.modules);
+  renderQuizBuilder(normalized.quiz);
+}
+
+function collectModuleBuilder() {
+  return [...moduleBuilder.querySelectorAll(".builder-card")].map((card) => ({
+    title: card.querySelector("[data-module-title]").value,
+    content: card.querySelector("[data-module-content]").value,
+    imageUrl: card.querySelector("[data-module-image]").value,
+    resourceUrl: card.querySelector("[data-module-resource]").value,
+  }));
+}
+
+function collectQuizBuilder() {
+  return [...quizBuilder.querySelectorAll(".builder-card")].map((card) => ({
+    question: card.querySelector("[data-question-text]").value,
+    answers: [...card.querySelectorAll("[data-answer-text]")].map((input) => input.value),
+    correct: Number(card.querySelector("[data-correct-answer]").value),
+  }));
+}
+
+function renderModuleBuilder(modules = []) {
+  const safeModules = modules.length
+    ? modules
+    : [{ title: "Module One", content: "", imageUrl: "", resourceUrl: "" }];
+
+  moduleBuilder.innerHTML = safeModules
+    .map(
+      (module, index) => `
+        <div class="builder-card" data-module-card>
+          <div class="builder-card-heading">
+            <strong>Module ${index + 1}</strong>
+            <button class="ghost-button danger-button" type="button" data-remove-module="${index}">Remove</button>
+          </div>
+          <label class="field-label">Module title</label>
+          <input data-module-title value="${escapeHtml(module.title || "")}" required />
+          <label class="field-label">Training content</label>
+          <textarea data-module-content rows="5" required>${escapeHtml(
+            module.content || (Array.isArray(module.body) ? module.body.join("\n") : ""),
+          )}</textarea>
+          <label class="field-label">Image URL</label>
+          <input data-module-image value="${escapeHtml(module.imageUrl || "")}" placeholder="https://example.com/module-image.png" />
+          <label class="field-label">Resource URL</label>
+          <input data-module-resource value="${escapeHtml(module.resourceUrl || "")}" placeholder="https://example.com/resource" />
+        </div>
+      `,
+    )
+    .join("");
+
+  moduleBuilder.querySelectorAll("[data-remove-module]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const modules = collectModuleBuilder();
+      modules.splice(Number(button.dataset.removeModule), 1);
+      renderModuleBuilder(modules);
+    });
+  });
+}
+
+function renderQuizBuilder(quiz = []) {
+  const safeQuiz = quiz.length
+    ? quiz
+    : [
+        {
+          question: "",
+          answers: ["", "", "", ""],
+          correct: 0,
+        },
+      ];
+
+  quizBuilder.innerHTML = safeQuiz
+    .map((item, index) => {
+      const answers = [...(item.answers || [])];
+      while (answers.length < 4) answers.push("");
+      return `
+        <div class="builder-card" data-question-card>
+          <div class="builder-card-heading">
+            <strong>Question ${index + 1}</strong>
+            <button class="ghost-button danger-button" type="button" data-remove-question="${index}">Remove</button>
+          </div>
+          <label class="field-label">Question</label>
+          <input data-question-text value="${escapeHtml(item.question || "")}" required />
+          <div class="answer-grid">
+            ${answers
+              .slice(0, 4)
+              .map(
+                (answer, answerIndex) => `
+                  <label>
+                    <span class="field-label">Answer ${answerIndex + 1}</span>
+                    <input data-answer-text value="${escapeHtml(answer)}" required />
+                  </label>
+                `,
+              )
+              .join("")}
+          </div>
+          <label class="field-label">Correct answer</label>
+          <select data-correct-answer>
+            ${answers
+              .slice(0, 4)
+              .map(
+                (_, answerIndex) =>
+                  `<option value="${answerIndex}" ${
+                    Number(item.correct) === answerIndex ? "selected" : ""
+                  }>Answer ${answerIndex + 1}</option>`,
+              )
+              .join("")}
+          </select>
+        </div>
+      `;
+    })
+    .join("");
+
+  quizBuilder.querySelectorAll("[data-remove-question]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const quiz = collectQuizBuilder();
+      quiz.splice(Number(button.dataset.removeQuestion), 1);
+      renderQuizBuilder(quiz);
+    });
+  });
 }
 
 function renderManagement() {
@@ -441,6 +609,10 @@ function renderManagement() {
     : "Command add/edit rights";
   deleteTrainingButton.hidden = !canDeleteTrainings();
 
+  managerService.innerHTML = serviceSections
+    .map((service) => `<option value="${escapeHtml(service)}">${escapeHtml(service)}</option>`)
+    .join("");
+
   if (!selectedManagerCourseId || !courses.some((course) => course.id === selectedManagerCourseId)) {
     selectedManagerCourseId = courses[0]?.id || "";
   }
@@ -450,7 +622,7 @@ function renderManagement() {
       (course) =>
         `<option value="${escapeHtml(course.id)}" ${
           course.id === selectedManagerCourseId ? "selected" : ""
-        }>${escapeHtml(course.division || "General")} - ${escapeHtml(course.title)}</option>`,
+        }>${escapeHtml(course.service)} - ${escapeHtml(course.title)}</option>`,
     )
     .join("");
 
@@ -462,7 +634,7 @@ async function saveCoursesToServer() {
     method: "PUT",
     body: JSON.stringify({ courses }),
   });
-  courses = result.courses?.length ? result.courses : courses;
+  courses = result.courses?.length ? result.courses.map(normalizeCourse) : courses;
   if (!courses.some((course) => course.id === selectedCourseId)) selectedCourseId = courses[0]?.id || "";
   if (!courses.some((course) => course.id === selectedManagerCourseId)) {
     selectedManagerCourseId = courses[0]?.id || "";
@@ -470,31 +642,58 @@ async function saveCoursesToServer() {
 }
 
 function renderCourseList() {
-  if (!courses.length) {
-    courseList.innerHTML = "";
-    return;
-  }
-
-  courseList.innerHTML = courses
-    .map((course) => {
-      const courseProgress = getCourseProgress(course.id);
-      const isActive = course.id === selectedCourseId;
+  courseList.innerHTML = serviceSections
+    .map((service) => {
+      const serviceCourses = courses.filter((course) => course.service === service);
       return `
-        <button class="course-button ${isActive ? "active" : ""}" type="button" data-course="${course.id}">
-          <span class="course-icon">${course.icon}</span>
-          <span>
-            <strong>${escapeHtml(course.title)}</strong>
-            <small>${escapeHtml(course.tag)}</small>
-          </span>
-          <span class="course-state ${courseProgress.passed ? "complete" : ""}" aria-label="${courseProgress.passed ? "Completed" : "Incomplete"}"></span>
-        </button>
+        <section class="service-group">
+          <button class="service-button ${
+            selectedService === service ? "active" : ""
+          }" type="button" data-service="${escapeHtml(service)}">
+            <span>${escapeHtml(service)}</span>
+            <small>${serviceCourses.length}</small>
+          </button>
+          <div class="service-trainings" ${selectedService === service ? "" : "hidden"}>
+            ${
+              serviceCourses.length
+                ? serviceCourses
+                    .map((course) => {
+                      const courseProgress = getCourseProgress(course.id);
+                      const isActive = course.id === selectedCourseId;
+                      return `
+                        <button class="course-button ${isActive ? "active" : ""}" type="button" data-course="${escapeHtml(course.id)}">
+                          <span class="course-icon">${escapeHtml(course.icon)}</span>
+                          <span>
+                            <strong>${escapeHtml(course.title)}</strong>
+                            <small>${escapeHtml(course.division || course.tag)}</small>
+                          </span>
+                          <span class="course-state ${courseProgress.passed ? "complete" : ""}" aria-label="${courseProgress.passed ? "Completed" : "Incomplete"}"></span>
+                        </button>
+                      `;
+                    })
+                    .join("")
+                : `<p class="empty-service">No trainings yet</p>`
+            }
+          </div>
+        </section>
       `;
     })
     .join("");
 
+  document.querySelectorAll("[data-service]").forEach((button) => {
+    button.addEventListener("click", () => {
+      selectedService = button.dataset.service;
+      const firstCourse = courses.find((course) => course.service === selectedService);
+      if (firstCourse) selectedCourseId = firstCourse.id;
+      selectedModuleIndex = 0;
+      render();
+    });
+  });
+
   document.querySelectorAll("[data-course]").forEach((button) => {
     button.addEventListener("click", () => {
       selectedCourseId = button.dataset.course;
+      selectedService = getCourse()?.service || selectedService;
       selectedModuleIndex = 0;
       render();
     });
@@ -521,10 +720,12 @@ function renderModules(course) {
     });
   });
 
-  const module = course.modules[selectedModuleIndex];
+  const module = course.modules[selectedModuleIndex] || course.modules[0];
+  const points = modulePoints(module);
   moduleBody.innerHTML = `
     <h3>${escapeHtml(module.title)}</h3>
-    <ul>${module.body.map((point) => `<li>${escapeHtml(point)}</li>`).join("")}</ul>
+    ${renderMedia(module.imageUrl, module.resourceUrl)}
+    <ul>${points.map((point) => `<li>${escapeHtml(point)}</li>`).join("")}</ul>
   `;
 
   markRead.textContent = courseProgress.readModules.includes(selectedModuleIndex)
@@ -595,12 +796,14 @@ function renderCompletion(course) {
 }
 
 function render() {
+  normalizeCourses();
   const course = getCourse();
   if (!course) return;
   const courseProgress = getCourseProgress(course.id);
+  selectedService = course.service || selectedService;
 
   courseTitle.textContent = course.title;
-  courseTag.textContent = course.tag;
+  courseTag.textContent = `${course.service} / ${course.division}`;
   courseHeading.textContent = "Complete the briefing, then pass the quiz.";
   courseSummary.textContent = course.summary;
   moduleProgress.textContent = `${courseProgress.readModules.length} / ${course.modules.length} read`;
@@ -610,6 +813,8 @@ function render() {
       : courseProgress.passed
         ? `Passed at ${courseProgress.quizScore}%`
         : `Last score ${courseProgress.quizScore}%`;
+
+  courseMedia.innerHTML = renderMedia(course.imageUrl, course.resourceUrl);
 
   renderCourseList();
   renderAccount();
@@ -679,13 +884,14 @@ managerCourseSelect.addEventListener("change", () => {
   fillManagerForm(getManagerCourse());
 });
 
-newTrainingButton.addEventListener("click", async () => {
+newTrainingButton.addEventListener("click", () => {
   if (!canManageTrainings()) return;
   const training = createBlankTraining();
   courses.push(training);
+  selectedService = training.service;
   selectedCourseId = training.id;
   selectedManagerCourseId = training.id;
-  managerResult.textContent = "New training created. Edit it, then save.";
+  managerResult.textContent = "New training created. Fill the fields, then save.";
   render();
 });
 
@@ -703,21 +909,44 @@ deleteTrainingButton.addEventListener("click", async () => {
   render();
 });
 
+addModuleButton.addEventListener("click", () => {
+  const modules = collectModuleBuilder();
+  modules.push({ title: `Module ${modules.length + 1}`, content: "", imageUrl: "", resourceUrl: "" });
+  renderModuleBuilder(modules);
+});
+
+addQuestionButton.addEventListener("click", () => {
+  const quiz = collectQuizBuilder();
+  quiz.push({ question: "", answers: ["", "", "", ""], correct: 0 });
+  renderQuizBuilder(quiz);
+});
+
 managerForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!canManageTrainings()) return;
 
   try {
-    const modules = JSON.parse(managerForm.elements.modules.value);
-    const quiz = JSON.parse(managerForm.elements.quiz.value);
+    const modules = collectModuleBuilder().filter((module) => module.title && module.content);
+    const quiz = collectQuizBuilder().filter(
+      (item) => item.question && item.answers.every((answer) => answer.trim()),
+    );
+
+    if (!modules.length || !quiz.length) {
+      managerResult.textContent = "Add at least one module and one complete quiz question.";
+      return;
+    }
+
     const existing = getManagerCourse();
     const nextCourse = {
       id: existing?.id || `training-${Date.now()}`,
+      service: managerForm.elements.service.value,
       division: managerForm.elements.division.value,
       title: managerForm.elements.title.value,
       tag: managerForm.elements.tag.value,
       icon: managerForm.elements.icon.value,
       summary: managerForm.elements.summary.value,
+      imageUrl: managerForm.elements.imageUrl.value,
+      resourceUrl: managerForm.elements.resourceUrl.value,
       modules,
       quiz,
     };
@@ -726,13 +955,14 @@ managerForm.addEventListener("submit", async (event) => {
       ? courses.map((course) => (course.id === nextCourse.id ? nextCourse : course))
       : [...courses, nextCourse];
 
+    selectedService = nextCourse.service;
     selectedCourseId = nextCourse.id;
     selectedManagerCourseId = nextCourse.id;
     await saveCoursesToServer();
     managerResult.textContent = "Training saved.";
     render();
   } catch (error) {
-    managerResult.textContent = "Check the module or quiz JSON, then try again.";
+    managerResult.textContent = "Check the training fields, then try again.";
   }
 });
 
@@ -748,9 +978,12 @@ async function init() {
 
   const savedCourses = await api("/api/courses");
   if (savedCourses.courses?.length) {
-    courses = savedCourses.courses;
+    courses = savedCourses.courses.map(normalizeCourse);
+  } else {
+    normalizeCourses();
   }
   selectedCourseId = courses[0]?.id || "";
+  selectedService = courses[0]?.service || serviceSections[0];
   selectedManagerCourseId = selectedCourseId;
 
   if (isSignedIn()) {
@@ -764,5 +997,6 @@ async function init() {
 init().catch((error) => {
   console.error(error);
   progress = JSON.parse(localStorage.getItem("five999TrainingProgressBackup") || "{}");
+  normalizeCourses();
   render();
 });

@@ -27,7 +27,9 @@ body {
 }
 
 button,
-input {
+input,
+select,
+textarea {
   font: inherit;
 }
 
@@ -86,7 +88,51 @@ input {
 
 .course-list {
   display: grid;
+  gap: 12px;
+}
+
+.service-group {
+  display: grid;
   gap: 8px;
+}
+
+.service-button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 9px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.service-button.active,
+.service-button:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.service-button span {
+  font-weight: 800;
+}
+
+.service-button small {
+  display: grid;
+  place-items: center;
+  min-width: 26px;
+  height: 24px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.service-trainings {
+  display: grid;
+  gap: 7px;
 }
 
 .course-button {
@@ -103,6 +149,13 @@ input {
   color: inherit;
   text-align: left;
   cursor: pointer;
+}
+
+.empty-service {
+  margin: 0;
+  padding: 8px 10px;
+  color: rgba(248, 251, 252, 0.65);
+  font-size: 0.86rem;
 }
 
 .course-button.active,
@@ -345,11 +398,40 @@ h2 {
   font-size: clamp(1.55rem, 2.4vw, 2.3rem);
 }
 
-.hero-copy p:last-child {
+.hero-copy p:last-of-type {
   max-width: 760px;
   margin-top: 12px;
   color: var(--muted);
   line-height: 1.6;
+}
+
+.course-media,
+.module-body .resource-link {
+  margin-top: 14px;
+}
+
+.training-image {
+  display: block;
+  width: min(100%, 620px);
+  max-height: 280px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+}
+
+.resource-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  margin-right: 10px;
+  padding: 0 12px;
+  border: 1px solid #b9d7cf;
+  border-radius: 8px;
+  background: #eef8f5;
+  color: var(--teal);
+  font-weight: 800;
+  text-decoration: none;
 }
 
 .progress-strip {
@@ -501,6 +583,43 @@ h2 {
   gap: 10px;
 }
 
+.builder-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.builder-list {
+  display: grid;
+  gap: 12px;
+}
+
+.builder-card {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfc;
+}
+
+.builder-card-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.answer-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
 .field-label {
   display: block;
   margin-bottom: 6px;
@@ -567,7 +686,8 @@ textarea {
 
   .content-grid,
   .hero-panel,
-  .manager-layout {
+  .manager-layout,
+  .answer-grid {
     grid-template-columns: 1fr;
   }
 }

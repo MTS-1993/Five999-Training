@@ -144,6 +144,17 @@ function hasAnyRole(memberRoleIds, allowedRoleIds) {
   return allowedRoleIds.some((roleId) => memberRoleIds.includes(roleId));
 }
 
+function sanitizeUrl(value) {
+  const url = String(value || "").trim().slice(0, 1000);
+  if (!url) return "";
+  try {
+    const parsed = new URL(url);
+    return ["http:", "https:"].includes(parsed.protocol) ? url : "";
+  } catch {
+    return "";
+  }
+}
+
 async function getDiscordRoleIds(discordId) {
   if (!DISCORD_GUILD_ID || !DISCORD_BOT_TOKEN) return [];
 
@@ -177,27 +188,42 @@ function sanitizeCourses(courses) {
 
   return courses.map((course, index) => ({
     id: String(course.id || `training-${Date.now()}-${index}`).replace(/[^a-z0-9-]/gi, "-"),
+    service: String(course.service || course.division || "United Kingdom Police Service").slice(0, 120),
     division: String(course.division || "General"),
     icon: String(course.icon || "TR").slice(0, 3).toUpperCase(),
     title: String(course.title || "Untitled Training").slice(0, 90),
     tag: String(course.tag || "Specialist training").slice(0, 120),
     summary: String(course.summary || "").slice(0, 500),
+    imageUrl: sanitizeUrl(course.imageUrl),
+    resourceUrl: sanitizeUrl(course.resourceUrl),
     modules: Array.isArray(course.modules)
       ? course.modules.map((module) => ({
           title: String(module.title || "Module").slice(0, 90),
+          content: String(
+            module.content || (Array.isArray(module.body) ? module.body.join("\n") : ""),
+          ).slice(0, 3000),
           body: Array.isArray(module.body)
             ? module.body.map((point) => String(point).slice(0, 500)).filter(Boolean)
-            : [],
+            : String(module.content || "")
+                .split("\n")
+                .map((point) => point.trim())
+                .filter(Boolean),
+          imageUrl: sanitizeUrl(module.imageUrl),
+          resourceUrl: sanitizeUrl(module.resourceUrl),
         }))
       : [],
     quiz: Array.isArray(course.quiz)
-      ? course.quiz.map((question) => ({
-          question: String(question.question || "").slice(0, 240),
-          answers: Array.isArray(question.answers)
+      ? course.quiz.map((question) => {
+          const answers = Array.isArray(question.answers)
             ? question.answers.map((answer) => String(answer).slice(0, 180)).slice(0, 6)
-            : [],
-          correct: Number.isInteger(question.correct) ? question.correct : 0,
-        }))
+            : [];
+          const correct = Math.max(0, Number.isInteger(question.correct) ? question.correct : 0);
+          return {
+            question: String(question.question || "").slice(0, 240),
+            answers,
+            correct: Math.min(correct, Math.max(answers.length - 1, 0)),
+          };
+        })
       : [],
   }));
 }
