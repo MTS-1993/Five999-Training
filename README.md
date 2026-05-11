@@ -20,10 +20,12 @@ A Render-hosted training dashboard for Five999 players to sign in with Discord, 
 - Optional image URLs and resource URLs for trainings and modules
 - Uploaded images for trainings and modules, stored with the training record
 - Quiz requirement can be toggled on or off per training
+- Quiz questions can use two or more answers, so yes/no questions are supported
 - Quiz locked until all modules are marked read
 - 80% pass requirement
 - Saved progress and completed trainings by Discord account
 - Completion message for players to screenshot
+- Downloadable completion certificate with player name, course, date, and Five999 logo
 - Discord support ticket button for role requests through FMS
 - Render web-service configuration included
 

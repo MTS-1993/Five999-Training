@@ -50,6 +50,7 @@ const quizForm = document.getElementById("quizForm");
 const scorePill = document.getElementById("scorePill");
 const completionPanel = document.getElementById("completionPanel");
 const certificateMessage = document.getElementById("certificateMessage");
+const downloadCertificateButton = document.getElementById("downloadCertificateButton");
 const ticketLink = document.getElementById("ticketLink");
 const accountActions = document.getElementById("accountActions");
 const authPanel = document.getElementById("authPanel");
@@ -351,11 +352,17 @@ function collectModuleBuilder() {
 }
 
 function collectQuizBuilder() {
-  return [...quizBuilder.querySelectorAll(".builder-card")].map((card) => ({
-    question: card.querySelector("[data-question-text]").value,
-    answers: [...card.querySelectorAll("[data-answer-text]")].map((input) => input.value),
-    correct: Number(card.querySelector("[data-correct-answer]").value),
-  }));
+  return [...quizBuilder.querySelectorAll(".builder-card")].map((card) => {
+    const rawAnswers = [...card.querySelectorAll("[data-answer-text]")].map((input) => input.value.trim());
+    const correctRawIndex = Number(card.querySelector("[data-correct-answer]").value);
+    const correctAnswerText = rawAnswers[correctRawIndex];
+    const answers = rawAnswers.filter(Boolean);
+    return {
+      question: card.querySelector("[data-question-text]").value.trim(),
+      answers,
+      correct: Math.max(0, answers.findIndex((answer) => answer === correctAnswerText)),
+    };
+  });
 }
 
 function readImageFile(file) {
@@ -496,6 +503,7 @@ function renderQuizBuilder(quiz = []) {
               )
               .join("")}
           </select>
+          <p class="field-hint">Leave unused answer boxes blank. Two answers are fine for yes/no questions.</p>
         </div>
       `;
     })
@@ -802,6 +810,96 @@ function renderCompletion(course) {
   `;
 }
 
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = reject;
+    image.src = src;
+  });
+}
+
+function drawCenteredText(ctx, text, x, y, maxWidth, lineHeight) {
+  const words = String(text).split(" ");
+  const lines = [];
+  let line = "";
+  for (const word of words) {
+    const testLine = line ? `${line} ${word}` : word;
+    if (ctx.measureText(testLine).width > maxWidth && line) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = testLine;
+    }
+  }
+  lines.push(line);
+  lines.forEach((item, index) => ctx.fillText(item, x, y + index * lineHeight));
+}
+
+async function downloadCertificate() {
+  const course = getCourse();
+  if (!course) return;
+  const courseProgress = getCourseProgress(course.id);
+  if (!courseProgress.passed) return;
+
+  const displayName = currentUser?.globalName || currentUser?.username || "This player";
+  const canvas = document.createElement("canvas");
+  canvas.width = 1600;
+  canvas.height = 1100;
+  const ctx = canvas.getContext("2d");
+
+  ctx.fillStyle = "#071b2c";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(70, 70, 1460, 960);
+  ctx.strokeStyle = "#d21f2b";
+  ctx.lineWidth = 10;
+  ctx.strokeRect(95, 95, 1410, 910);
+  ctx.strokeStyle = "#0057c8";
+  ctx.lineWidth = 5;
+  ctx.strokeRect(120, 120, 1360, 860);
+
+  try {
+    const logo = await loadImage("assets/five999-training-logo.png");
+    ctx.drawImage(logo, 680, 130, 240, 240);
+  } catch {
+    ctx.fillStyle = "#d21f2b";
+    ctx.font = "bold 72px Arial";
+    ctx.textAlign = "center";
+    ctx.fillText("Five999", 800, 250);
+  }
+
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#d21f2b";
+  ctx.font = "bold 42px Arial";
+  ctx.fillText("CERTIFICATE OF COMPLETION", 800, 430);
+
+  ctx.fillStyle = "#071b2c";
+  ctx.font = "32px Arial";
+  ctx.fillText("This certifies that", 800, 510);
+
+  ctx.font = "bold 64px Arial";
+  drawCenteredText(ctx, displayName, 800, 600, 1100, 70);
+
+  ctx.font = "32px Arial";
+  ctx.fillText("has successfully completed", 800, 730);
+
+  ctx.font = "bold 48px Arial";
+  drawCenteredText(ctx, course.title, 800, 805, 1180, 56);
+
+  ctx.font = "28px Arial";
+  ctx.fillText(`Completed on ${courseProgress.completedAt || new Date().toLocaleDateString("en-GB")}`, 800, 925);
+
+  ctx.fillStyle = "#5d6f7b";
+  ctx.font = "24px Arial";
+  ctx.fillText("Five999 Training Hub", 800, 970);
+
+  const link = document.createElement("a");
+  link.download = `${course.title.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-certificate.png`;
+  link.href = canvas.toDataURL("image/png");
+  link.click();
+}
+
 function render() {
   normalizeCourses();
   const course = getCourse();
@@ -941,6 +1039,10 @@ refreshStatsButton.addEventListener("click", () => {
   loadStats();
 });
 
+downloadCertificateButton.addEventListener("click", () => {
+  downloadCertificate();
+});
+
 newTrainingButton.addEventListener("click", () => {
   if (!canManageTrainings()) return;
   const training = createBlankTraining();
@@ -987,15 +1089,13 @@ managerForm.addEventListener("submit", async (event) => {
     const modules = (await applyUploadedImagesToModules(collectModuleBuilder())).filter(
       (module) => module.title && module.content,
     );
-    const quiz = collectQuizBuilder().filter(
-      (item) => item.question && item.answers.every((answer) => answer.trim()),
-    );
+    const quiz = collectQuizBuilder().filter((item) => item.question && item.answers.length >= 2);
     const quizEnabled = managerForm.elements.quizEnabled.checked;
     const uploadedTrainingImage = await readImageFile(managerForm.elements.imageUpload.files[0]);
 
     if (!modules.length || (quizEnabled && !quiz.length)) {
       managerResult.textContent = quizEnabled
-        ? "Add at least one module and one complete quiz question."
+        ? "Add at least one module and one quiz question with at least two answers."
         : "Add at least one module.";
       return;
     }
