@@ -51,7 +51,11 @@ const scorePill = document.getElementById("scorePill");
 const completionPanel = document.getElementById("completionPanel");
 const certificateMessage = document.getElementById("certificateMessage");
 const downloadCertificateButton = document.getElementById("downloadCertificateButton");
+const downloadPdfCertificateButton = document.getElementById("downloadPdfCertificateButton");
 const ticketLink = document.getElementById("ticketLink");
+const profilePanel = document.getElementById("profilePanel");
+const profileSummary = document.getElementById("profileSummary");
+const profileGrid = document.getElementById("profileGrid");
 const accountActions = document.getElementById("accountActions");
 const authPanel = document.getElementById("authPanel");
 const managementPanel = document.getElementById("managementPanel");
@@ -171,6 +175,14 @@ function getCourseProgress(courseId) {
   return progress[courseId];
 }
 
+function getProgressState(course) {
+  const courseProgress = getCourseProgress(course.id);
+  if (courseProgress.passed) return { label: "Completed", className: "complete" };
+  if (courseProgress.quizScore !== null) return { label: "Failed", className: "failed" };
+  if ((courseProgress.readModules || []).length > 0) return { label: "In progress", className: "progress" };
+  return { label: "Not started", className: "idle" };
+}
+
 function saveProgress() {
   if (!isSignedIn()) return;
   api("/api/progress", {
@@ -211,6 +223,7 @@ function renderAccount() {
       : "Player";
   accountActions.innerHTML = `
     <span class="account-chip">Signed in as <strong>${displayName}</strong> &middot; ${roleLabel}</span>
+    <button class="ghost-button" id="profileButton" type="button">My Profile</button>
     ${
       canManageTrainings()
         ? `<button class="ghost-button" id="dashboardModeButton" type="button">Training Dashboard</button>`
@@ -223,6 +236,13 @@ function renderAccount() {
   document.getElementById("dashboardModeButton")?.addEventListener("click", () => {
     adminMode = false;
     render();
+  });
+
+  document.getElementById("profileButton").addEventListener("click", () => {
+    adminMode = false;
+    render();
+    profilePanel.hidden = false;
+    profilePanel.scrollIntoView({ behavior: "smooth", block: "start" });
   });
 
   document.getElementById("resetProgress").addEventListener("click", () => {
@@ -676,6 +696,7 @@ function renderCourseList() {
                 ? serviceCourses
                     .map((course) => {
                       const courseProgress = getCourseProgress(course.id);
+                      const state = getProgressState(course);
                       const isActive = course.id === selectedCourseId;
                       return `
                         <button class="course-button ${isActive ? "active" : ""}" type="button" data-course="${escapeHtml(course.id)}">
@@ -684,7 +705,7 @@ function renderCourseList() {
                             <strong>${escapeHtml(course.title)}</strong>
                             <small>${escapeHtml(course.division || course.tag)}</small>
                           </span>
-                          <span class="course-state ${courseProgress.passed ? "complete" : ""}" aria-label="${courseProgress.passed ? "Completed" : "Incomplete"}"></span>
+                          <span class="progress-badge ${state.className}">${escapeHtml(state.label)}</span>
                         </button>
                       `;
                     })
@@ -721,6 +742,43 @@ function renderCourseList() {
       render();
     });
   });
+}
+
+function renderProfile() {
+  profilePanel.hidden = !isSignedIn() || adminMode || !courses.length;
+  if (profilePanel.hidden) return;
+
+  const completed = courses.filter((course) => getCourseProgress(course.id).passed).length;
+  profileSummary.textContent = `${completed} / ${courses.length} completed`;
+  profileGrid.innerHTML = courses
+    .map((course) => {
+      const courseProgress = getCourseProgress(course.id);
+      const state = getProgressState(course);
+      return `
+        <article class="profile-card">
+          <div>
+            <span class="progress-badge ${state.className}">${escapeHtml(state.label)}</span>
+            <h3>${escapeHtml(course.title)}</h3>
+            <p>${escapeHtml(course.service)} / ${escapeHtml(course.division)}</p>
+          </div>
+          <dl>
+            <div>
+              <dt>Modules read</dt>
+              <dd>${courseProgress.readModules.length} / ${course.modules.length}</dd>
+            </div>
+            <div>
+              <dt>Best score</dt>
+              <dd>${courseProgress.quizScore === null ? "Not attempted" : `${courseProgress.quizScore}%`}</dd>
+            </div>
+            <div>
+              <dt>Completed</dt>
+              <dd>${courseProgress.completedAt || "Not completed"}</dd>
+            </div>
+          </dl>
+        </article>
+      `;
+    })
+    .join("");
 }
 
 function renderModules(course) {
@@ -857,11 +915,11 @@ function drawCenteredText(ctx, text, x, y, maxWidth, lineHeight) {
   lines.forEach((item, index) => ctx.fillText(item, x, y + index * lineHeight));
 }
 
-async function downloadCertificate() {
+async function createCertificateCanvas() {
   const course = getCourse();
-  if (!course) return;
+  if (!course) return null;
   const courseProgress = getCourseProgress(course.id);
-  if (!courseProgress.passed) return;
+  if (!courseProgress.passed) return null;
 
   const displayName = currentUser?.globalName || currentUser?.username || "This player";
   const canvas = document.createElement("canvas");
@@ -915,10 +973,72 @@ async function downloadCertificate() {
   ctx.font = "24px Arial";
   ctx.fillText("Five999 Training Hub", 800, 970);
 
+  return canvas;
+}
+
+async function downloadCertificate() {
+  const course = getCourse();
+  const canvas = await createCertificateCanvas();
+  if (!course || !canvas) return;
+
   const link = document.createElement("a");
   link.download = `${course.title.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-certificate.png`;
   link.href = canvas.toDataURL("image/png");
   link.click();
+}
+
+function encodePdfText(value) {
+  return String(value).replace(/[()\\]/g, "\\$&");
+}
+
+function buildCertificatePdf(jpegBinary, title) {
+  const objects = [];
+  const addObject = (content) => {
+    objects.push(content);
+    return objects.length;
+  };
+
+  const imageObject = addObject(
+    `<< /Type /XObject /Subtype /Image /Width 1600 /Height 1100 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpegBinary.length} >>\nstream\n${jpegBinary}\nendstream`,
+  );
+  const content = `q\n842 0 0 595 0 0 cm\n/CertImage Do\nQ\nBT\n/F1 8 Tf\n1 1 1 rg\n5 5 Td\n(${encodePdfText(title)}) Tj\nET`;
+  const contentObject = addObject(`<< /Length ${content.length} >>\nstream\n${content}\nendstream`);
+  const pageObject = addObject(
+    `<< /Type /Page /Parent 4 0 R /MediaBox [0 0 842 595] /Resources << /XObject << /CertImage ${imageObject} 0 R >> /Font << /F1 5 0 R >> >> /Contents ${contentObject} 0 R >>`,
+  );
+  const pagesObject = addObject(`<< /Type /Pages /Kids [${pageObject} 0 R] /Count 1 >>`);
+  addObject("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
+  const catalogObject = addObject(`<< /Type /Catalog /Pages ${pagesObject} 0 R >>`);
+
+  let pdf = "%PDF-1.4\n";
+  const offsets = [0];
+  objects.forEach((object, index) => {
+    offsets.push(pdf.length);
+    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
+  });
+  const xrefOffset = pdf.length;
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  offsets.slice(1).forEach((offset) => {
+    pdf += `${String(offset).padStart(10, "0")} 00000 n \n`;
+  });
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root ${catalogObject} 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+  return pdf;
+}
+
+async function downloadPdfCertificate() {
+  const course = getCourse();
+  const canvas = await createCertificateCanvas();
+  if (!course || !canvas) return;
+
+  const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+  const jpegBinary = atob(dataUrl.split(",")[1]);
+  const pdf = buildCertificatePdf(jpegBinary, `${course.title} Certificate`);
+  const bytes = Uint8Array.from(pdf, (char) => char.charCodeAt(0));
+  const link = document.createElement("a");
+  link.download = `${course.title.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-certificate.pdf`;
+  link.href = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+  link.click();
+  URL.revokeObjectURL(link.href);
 }
 
 function render() {
@@ -972,6 +1092,7 @@ function render() {
   renderModules(course);
   renderQuiz(course);
   renderCompletion(course);
+  renderProfile();
   renderManagement();
 }
 
@@ -1065,6 +1186,10 @@ refreshStatsButton.addEventListener("click", () => {
 
 downloadCertificateButton.addEventListener("click", () => {
   downloadCertificate();
+});
+
+downloadPdfCertificateButton.addEventListener("click", () => {
+  downloadPdfCertificate();
 });
 
 newTrainingButton.addEventListener("click", () => {

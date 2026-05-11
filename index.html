@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Five999 Specialist Training</title>
-    <link rel="stylesheet" href="styles.css?v=20260511-10" />
+    <link rel="stylesheet" href="styles.css?v=20260511-11" />
   </head>
   <body>
     <div class="app-shell">
@@ -12,7 +12,7 @@
         <div class="brand">
           <img
             class="brand-logo"
-            src="assets/five999-training-logo.png?v=20260511-10"
+            src="assets/five999-training-logo.png?v=20260511-11"
             alt="Five999 Training"
           />
         </div>
@@ -82,6 +82,17 @@
           </div>
         </section>
 
+        <section class="profile-panel training-area" id="profilePanel" hidden>
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Player profile</p>
+              <h2>My Training Profile</h2>
+            </div>
+            <span class="score-pill" id="profileSummary">0 completed</span>
+          </div>
+          <div class="profile-grid" id="profileGrid"></div>
+        </section>
+
         <section class="content-grid training-area" id="trainingContent">
           <article class="panel">
             <div class="panel-heading">
@@ -112,7 +123,10 @@
           <h2>Screenshot this confirmation</h2>
           <div class="certificate" id="certificateMessage"></div>
           <button class="primary-button ticket-link" id="downloadCertificateButton" type="button">
-            Download Certificate
+            Download PNG Certificate
+          </button>
+          <button class="ghost-button ticket-link" id="downloadPdfCertificateButton" type="button">
+            Download PDF Certificate
           </button>
           <a class="primary-button ticket-link" id="ticketLink" href="#" target="_blank" rel="noreferrer">
             Open Five999 Discord Ticket Section
@@ -250,6 +264,6 @@
       </main>
     </div>
 
-    <script src="app.js?v=20260511-10"></script>
+    <script src="app.js?v=20260511-11"></script>
   </body>
 </html>

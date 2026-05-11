@@ -21,6 +21,7 @@ const {
   DISCORD_BOT_TOKEN,
   COMMAND_ROLE_IDS = "",
   LEADERSHIP_ROLE_IDS = "",
+  DISCORD_DM_NOTIFICATIONS = "false",
   DATABASE_URL,
   SESSION_SECRET = "replace-this-session-secret-before-production",
 } = process.env;
@@ -312,6 +313,52 @@ async function getProgress(user) {
   return data[user.id]?.progress || {};
 }
 
+async function sendDiscordDm(discordId, message) {
+  if (DISCORD_DM_NOTIFICATIONS !== "true" || !DISCORD_BOT_TOKEN) return;
+
+  const channelResponse = await fetch("https://discord.com/api/users/@me/channels", {
+    method: "POST",
+    headers: {
+      Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ recipient_id: discordId }),
+  });
+
+  if (!channelResponse.ok) return;
+  const channel = await channelResponse.json();
+
+  await fetch(`https://discord.com/api/channels/${channel.id}/messages`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ content: message.slice(0, 1900) }),
+  });
+}
+
+async function notifyNewCompletions(user, oldProgress, nextProgress, courses) {
+  const courseMap = new Map(courses.map((course) => [course.id, course]));
+  const newlyCompleted = Object.entries(nextProgress || {}).filter(([courseId, item]) => {
+    return item?.passed && !oldProgress?.[courseId]?.passed && courseMap.has(courseId);
+  });
+
+  for (const [courseId, item] of newlyCompleted) {
+    const course = courseMap.get(courseId);
+    await sendDiscordDm(
+      user.id,
+      [
+        `Five999 Training completed: ${course.title}`,
+        `Completed as: ${user.globalName || user.username}`,
+        item.quizScore === null ? "No quiz was required." : `Score: ${item.quizScore}%`,
+        `Date: ${item.completedAt || new Date().toLocaleString("en-GB")}`,
+        "Please open a support ticket in the Five999 Discord to obtain the role via FMS.",
+      ].join("\n"),
+    );
+  }
+}
+
 async function getAllProgressRows() {
   if (pool) {
     await ensureDatabase();
@@ -453,6 +500,7 @@ app.get("/api/config", (req, res) => {
     discordTicketUrl: DISCORD_TICKET_URL,
     authConfigured: Boolean(DISCORD_CLIENT_ID && DISCORD_CLIENT_SECRET && DISCORD_REDIRECT_URI),
     roleChecksConfigured: Boolean(DISCORD_GUILD_ID && DISCORD_BOT_TOKEN),
+    dmNotificationsConfigured: DISCORD_DM_NOTIFICATIONS === "true" && Boolean(DISCORD_BOT_TOKEN),
   });
 });
 
@@ -523,7 +571,10 @@ app.get("/api/progress", requireUser, async (req, res, next) => {
 
 app.put("/api/progress", requireUser, async (req, res, next) => {
   try {
-    await saveProgress(req.user, req.body.progress || {});
+    const oldProgress = await getProgress(req.user);
+    const nextProgress = req.body.progress || {};
+    await saveProgress(req.user, nextProgress);
+    notifyNewCompletions(req.user, oldProgress, nextProgress, await getCourses()).catch(console.error);
     res.json({ ok: true });
   } catch (error) {
     next(error);

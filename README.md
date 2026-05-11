@@ -24,9 +24,13 @@ A Render-hosted training dashboard for Five999 players to sign in with Discord, 
 - Quiz locked until all modules are marked read
 - 80% pass requirement
 - Saved progress and completed trainings by Discord account
+- Player training profile with progress badges for each course
 - Completion message for players to screenshot
 - Downloadable completion certificate with player name, course, date, and Five999 logo
+- Downloadable PDF certificate as well as PNG certificate
+- Optional Discord DM notification when a player completes a training
 - Discord support ticket button for role requests through FMS
+- Mobile-friendly Command training management layout
 - Render web-service configuration included
 
 ## Render Environment Variables
@@ -41,6 +45,7 @@ Set these in Render:
 - `DISCORD_BOT_TOKEN`
 - `COMMAND_ROLE_IDS`
 - `LEADERSHIP_ROLE_IDS`
+- `DISCORD_DM_NOTIFICATIONS`
 - `SESSION_SECRET`
 - `DATABASE_URL`
 
@@ -49,6 +54,8 @@ Set these in Render:
 `COMMAND_ROLE_IDS` and `LEADERSHIP_ROLE_IDS` are comma-separated Discord role IDs. Leadership users automatically get Command permissions too. The bot token is used only to read the signed-in member's roles from your Discord server, so the bot must be in the Five999 Discord server.
 
 For local testing without `DATABASE_URL`, progress is saved to `data/progress.json`.
+
+Set `DISCORD_DM_NOTIFICATIONS=true` if you want the bot to DM players when they complete a training. This requires `DISCORD_BOT_TOKEN` to be set, and some players may need to allow DMs from server members in Discord.
 
 ## Discord OAuth2 Redirect
 
