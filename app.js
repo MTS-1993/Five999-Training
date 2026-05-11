@@ -184,7 +184,7 @@ function renderAccount() {
   }
 
   if (!isSignedIn()) {
-    accountActions.innerHTML = `<a class="primary-button" href="/auth/discord">Sign in with Discord</a>`;
+    accountActions.innerHTML = "";
     adminSidebarPanel.hidden = true;
     authPanel.querySelector("a").style.display = "";
     return;

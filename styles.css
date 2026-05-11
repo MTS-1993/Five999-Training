@@ -1,15 +1,17 @@
 :root {
-  --bg: #f4f7f8;
+  --bg: #eef3f6;
   --surface: #ffffff;
-  --ink: #122026;
-  --muted: #64747c;
-  --line: #dce5e7;
-  --red: #c7222a;
-  --navy: #172936;
-  --teal: #0f766e;
-  --amber: #b7791f;
-  --green: #21825b;
-  --shadow: 0 18px 45px rgba(24, 41, 54, 0.12);
+  --surface-2: #f8fbfc;
+  --ink: #071b2c;
+  --muted: #5d6f7b;
+  --line: #d4e0e6;
+  --red: #d21f2b;
+  --navy: #081f33;
+  --blue: #0057c8;
+  --teal: #008c72;
+  --amber: #f0a620;
+  --green: #138a5b;
+  --shadow: 0 18px 50px rgba(7, 27, 44, 0.12);
 }
 
 * {
@@ -19,7 +21,10 @@
 body {
   margin: 0;
   min-height: 100vh;
-  background: var(--bg);
+  background:
+    linear-gradient(135deg, rgba(0, 87, 200, 0.06), transparent 34%),
+    linear-gradient(315deg, rgba(210, 31, 43, 0.06), transparent 34%),
+    var(--bg);
   color: var(--ink);
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
@@ -35,17 +40,20 @@ textarea {
 
 .app-shell {
   display: grid;
-  grid-template-columns: 288px 1fr;
+  grid-template-columns: 306px 1fr;
   min-height: 100vh;
 }
 
 .sidebar {
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: 18px;
   padding: 24px;
-  background: var(--navy);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent 38%),
+    linear-gradient(135deg, #071b2c, #102f49);
   color: #f8fbfc;
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.08);
 }
 
 .brand {
@@ -55,7 +63,7 @@ textarea {
 .brand-logo {
   display: block;
   width: 100%;
-  max-width: 210px;
+  max-width: 176px;
   aspect-ratio: 1;
   object-fit: contain;
   border-radius: 8px;
@@ -93,9 +101,9 @@ textarea {
   width: 100%;
   min-height: 44px;
   padding: 9px 10px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.075);
   color: inherit;
   text-align: left;
   cursor: pointer;
@@ -103,7 +111,8 @@ textarea {
 
 .service-button.active,
 .service-button:hover {
-  background: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.34);
 }
 
 .service-button span {
@@ -168,9 +177,9 @@ textarea {
   width: 100%;
   min-height: 58px;
   padding: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.055);
+  background: rgba(255, 255, 255, 0.065);
   color: inherit;
   text-align: left;
   cursor: pointer;
@@ -187,6 +196,7 @@ textarea {
 .course-button:hover {
   background: #f8fbfc;
   color: var(--ink);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
 }
 
 .course-icon {
@@ -195,7 +205,7 @@ textarea {
   width: 38px;
   height: 38px;
   border-radius: 8px;
-  background: rgba(199, 34, 42, 0.14);
+  background: linear-gradient(135deg, rgba(210, 31, 43, 0.18), rgba(0, 87, 200, 0.12));
   color: var(--red);
   font-weight: 900;
 }
@@ -233,9 +243,9 @@ textarea {
 }
 
 .workspace {
-  width: min(1180px, 100%);
+  width: min(1240px, 100%);
   margin: 0 auto;
-  padding: 28px;
+  padding: 34px;
 }
 
 .topbar,
@@ -255,6 +265,11 @@ textarea {
   flex-wrap: wrap;
 }
 
+.topbar {
+  padding: 6px 0 20px;
+  border-bottom: 1px solid rgba(8, 31, 51, 0.08);
+}
+
 .account-chip,
 .account-warning {
   display: inline-flex;
@@ -263,7 +278,7 @@ textarea {
   padding: 0 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #ffffff;
+  background: rgba(255, 255, 255, 0.86);
   color: var(--muted);
 }
 
@@ -316,15 +331,16 @@ h2 {
 }
 
 .ghost-button {
-  background: #ffffff;
+  background: rgba(255, 255, 255, 0.92);
   color: var(--ink);
 }
 
 .primary-button {
   border-color: var(--red);
-  background: var(--red);
+  background: linear-gradient(135deg, var(--red), #a91521);
   color: #ffffff;
   font-weight: 800;
+  box-shadow: 0 10px 22px rgba(210, 31, 43, 0.22);
 }
 
 .primary-button:disabled {
@@ -340,8 +356,9 @@ h2 {
   margin-top: 24px;
   overflow: hidden;
   border-radius: 8px;
-  background: var(--surface);
+  background: rgba(255, 255, 255, 0.92);
   box-shadow: var(--shadow);
+  border: 1px solid rgba(255, 255, 255, 0.9);
 }
 
 .auth-panel {
@@ -351,9 +368,12 @@ h2 {
   gap: 18px;
   margin-top: 22px;
   padding: 20px;
-  border: 1px solid #b9d7cf;
+  border: 1px solid rgba(0, 140, 114, 0.28);
   border-radius: 8px;
-  background: #eef8f5;
+  background:
+    linear-gradient(90deg, rgba(0, 140, 114, 0.1), rgba(255, 255, 255, 0.9)),
+    #ffffff;
+  box-shadow: 0 12px 34px rgba(7, 27, 44, 0.08);
 }
 
 .auth-panel[hidden] {
@@ -372,8 +392,8 @@ h2 {
   display: grid;
   place-items: center;
   background:
-    linear-gradient(135deg, rgba(23, 41, 54, 0.86), rgba(23, 41, 54, 0.25)),
-    repeating-linear-gradient(120deg, #c7222a 0 16px, #f8fbfc 16px 30px, #172936 30px 46px);
+    linear-gradient(135deg, rgba(8, 31, 51, 0.92), rgba(8, 31, 51, 0.38)),
+    repeating-linear-gradient(120deg, #d21f2b 0 16px, #f8fbfc 16px 30px, #0057c8 30px 46px, #008c72 46px 60px);
 }
 
 .hero-art.has-training-image {
@@ -483,7 +503,7 @@ h2 {
   padding: 16px 18px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: var(--surface);
+  background: rgba(255, 255, 255, 0.9);
 }
 
 .progress-strip div {
@@ -506,7 +526,7 @@ h2 {
 .management-panel {
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: var(--surface);
+  background: rgba(255, 255, 255, 0.92);
   box-shadow: 0 10px 28px rgba(24, 41, 54, 0.07);
 }
 
@@ -526,7 +546,7 @@ h2 {
   padding: 0 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #f8fbfc;
+  background: var(--surface-2);
   cursor: pointer;
 }
 
@@ -554,7 +574,7 @@ h2 {
   min-height: 34px;
   padding: 0 10px;
   border-radius: 999px;
-  background: #eef6f3;
+  background: #e9f7f4;
   color: var(--teal);
   font-weight: 800;
 }
@@ -569,7 +589,7 @@ h2 {
   padding: 14px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #fbfcfc;
+  background: var(--surface-2);
 }
 
 .question legend {
