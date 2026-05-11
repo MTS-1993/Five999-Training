@@ -814,6 +814,30 @@ h2 {
   background: #ffffff;
 }
 
+.editor-mode-card {
+  padding: 16px;
+  border: 1px solid rgba(0, 122, 204, 0.24);
+  border-left: 5px solid var(--police-blue);
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(0, 122, 204, 0.11), rgba(0, 174, 102, 0.08));
+}
+
+.editor-mode-card h3,
+.editor-mode-card p {
+  margin: 0;
+}
+
+.editor-mode-card h3 {
+  margin-top: 4px;
+  font-size: 1.35rem;
+}
+
+.editor-mode-card p:last-child {
+  margin-top: 6px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
 .builder-heading {
   display: flex;
   align-items: center;

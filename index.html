@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Five999 Specialist Training</title>
-    <link rel="stylesheet" href="styles.css?v=20260511-9" />
+    <link rel="stylesheet" href="styles.css?v=20260511-10" />
   </head>
   <body>
     <div class="app-shell">
@@ -12,7 +12,7 @@
         <div class="brand">
           <img
             class="brand-logo"
-            src="assets/five999-training-logo.png?v=20260511-9"
+            src="assets/five999-training-logo.png?v=20260511-10"
             alt="Five999 Training"
           />
         </div>
@@ -173,15 +173,23 @@
 
           <div class="manager-layout" id="editorPanel">
             <div>
-              <label class="field-label" for="managerCourseSelect">Training</label>
+              <button class="primary-button" id="newTrainingButton" type="button">Create New Training</button>
+              <label class="field-label" for="managerCourseSelect">Edit existing training</label>
               <select id="managerCourseSelect"></select>
               <div class="manager-actions">
-                <button class="ghost-button" id="newTrainingButton" type="button">New Training</button>
                 <button class="ghost-button danger-button" id="deleteTrainingButton" type="button">Delete Training</button>
               </div>
             </div>
 
             <form class="manager-form" id="managerForm">
+              <div class="editor-mode-card">
+                <p class="eyebrow" id="editorModeLabel">Create mode</p>
+                <h3 id="editorModeTitle">Create New Training</h3>
+                <p id="editorModeText">
+                  Fill the fields below, add modules and quiz questions, then save to publish this training.
+                </p>
+              </div>
+
               <label class="field-label" for="managerService">Service section</label>
               <select id="managerService" name="service" required></select>
 
@@ -242,6 +250,6 @@
       </main>
     </div>
 
-    <script src="app.js?v=20260511-9"></script>
+    <script src="app.js?v=20260511-10"></script>
   </body>
 </html>

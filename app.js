@@ -28,7 +28,7 @@ let progress = {};
 let currentUser = null;
 let currentAccess = null;
 let authConfigured = false;
-let selectedManagerCourseId = "";
+let selectedManagerCourseId = "__new__";
 let adminMode = false;
 let adminView = "editor";
 let statsLoaded = false;
@@ -66,6 +66,9 @@ const moduleBuilder = document.getElementById("moduleBuilder");
 const quizBuilder = document.getElementById("quizBuilder");
 const managerForm = document.getElementById("managerForm");
 const managerResult = document.getElementById("managerResult");
+const editorModeLabel = document.getElementById("editorModeLabel");
+const editorModeTitle = document.getElementById("editorModeTitle");
+const editorModeText = document.getElementById("editorModeText");
 const trainingAreas = [...document.querySelectorAll(".training-area")];
 const adminSidebarPanel = document.getElementById("adminSidebarPanel");
 const sidebarAdminButton = document.getElementById("sidebarAdminButton");
@@ -238,27 +241,27 @@ function renderAccount() {
 function createBlankTraining() {
   return {
     id: `training-${Date.now()}`,
-    service: selectedService || serviceSections[0],
-    division: "New Subdivision",
-    icon: "TR",
-    title: "New Specialist Training",
-    tag: "Specialist training",
-    summary: "Add the training summary here.",
+    service: "",
+    division: "",
+    icon: "",
+    title: "",
+    tag: "",
+    summary: "",
     imageUrl: "",
     resourceUrl: "",
     quizEnabled: true,
     modules: [
       {
-        title: "Module One",
-        content: "Add the briefing content here.",
+        title: "",
+        content: "",
         imageUrl: "",
         resourceUrl: "",
       },
     ],
     quiz: [
       {
-        question: "Add your first quiz question here.",
-        answers: ["Correct answer", "Incorrect answer", "Incorrect answer", "Incorrect answer"],
+        question: "",
+        answers: ["", "", "", ""],
         correct: 0,
       },
     ],
@@ -266,7 +269,8 @@ function createBlankTraining() {
 }
 
 function getManagerCourse() {
-  return courses.find((course) => course.id === selectedManagerCourseId) || courses[0];
+  if (selectedManagerCourseId === "__new__") return null;
+  return courses.find((course) => course.id === selectedManagerCourseId) || null;
 }
 
 function renderMedia(imageUrl, resourceUrl) {
@@ -313,7 +317,12 @@ function modulePoints(module) {
 
 function fillManagerForm(course) {
   if (!course) {
-    managerForm.elements.service.value = selectedService || serviceSections[0];
+    editorModeLabel.textContent = "Create mode";
+    editorModeTitle.textContent = "Create New Training";
+    editorModeText.textContent =
+      "Fill the fields below, add modules and quiz questions, then save to publish this training.";
+    managerForm.dataset.mode = "create";
+    managerForm.elements.service.value = "";
     managerForm.elements.division.value = "";
     managerForm.elements.title.value = "";
     managerForm.elements.tag.value = "";
@@ -328,6 +337,10 @@ function fillManagerForm(course) {
     return;
   }
   const normalized = normalizeCourse(course);
+  editorModeLabel.textContent = "Edit mode";
+  editorModeTitle.textContent = `Editing ${normalized.title || "Training"}`;
+  editorModeText.textContent = "Changes here update the selected existing training when you press Save.";
+  managerForm.dataset.mode = "edit";
   managerForm.elements.service.value = normalized.service;
   managerForm.elements.division.value = normalized.division;
   managerForm.elements.title.value = normalized.title || "";
@@ -535,26 +548,33 @@ function renderManagement() {
     : adminView === "analytics"
       ? "Command analytics"
       : "Command add/edit rights";
-  deleteTrainingButton.hidden = !canDeleteTrainings() || !courses.length;
+  deleteTrainingButton.hidden = !canDeleteTrainings() || !courses.length || selectedManagerCourseId === "__new__";
 
-  managerService.innerHTML = serviceSections
+  managerService.innerHTML = [`<option value="">Choose a service section</option>`]
+    .concat(serviceSections
     .map((service) => `<option value="${escapeHtml(service)}">${escapeHtml(service)}</option>`)
-    .join("");
+    ).join("");
 
-  if (!selectedManagerCourseId || !courses.some((course) => course.id === selectedManagerCourseId)) {
-    selectedManagerCourseId = courses[0]?.id || "";
+  if (
+    selectedManagerCourseId !== "__new__" &&
+    (!selectedManagerCourseId || !courses.some((course) => course.id === selectedManagerCourseId))
+  ) {
+    selectedManagerCourseId = "__new__";
   }
 
-  managerCourseSelect.innerHTML = courses.length
-    ? courses
+  managerCourseSelect.innerHTML = [
+    `<option value="__new__" ${selectedManagerCourseId === "__new__" ? "selected" : ""}>Create a new training</option>`,
+  ]
+    .concat(
+      courses
         .map(
           (course) =>
             `<option value="${escapeHtml(course.id)}" ${
               course.id === selectedManagerCourseId ? "selected" : ""
             }>${escapeHtml(course.service)} - ${escapeHtml(course.title)}</option>`,
         )
-        .join("")
-    : `<option value="">No trainings created yet</option>`;
+    )
+    .join("");
 
   fillManagerForm(getManagerCourse());
   if (adminView === "analytics" && !statsLoaded) loadStats();
@@ -632,8 +652,8 @@ async function saveCoursesToServer() {
     ? removeOldExampleTrainings(result.courses).map(normalizeCourse)
     : courses;
   if (!courses.some((course) => course.id === selectedCourseId)) selectedCourseId = courses[0]?.id || "";
-  if (!courses.some((course) => course.id === selectedManagerCourseId)) {
-    selectedManagerCourseId = courses[0]?.id || "";
+  if (selectedManagerCourseId !== "__new__" && !courses.some((course) => course.id === selectedManagerCourseId)) {
+    selectedManagerCourseId = "__new__";
   }
 }
 
@@ -1021,12 +1041,14 @@ quizForm.addEventListener("submit", (event) => {
 
 managerCourseSelect.addEventListener("change", () => {
   selectedManagerCourseId = managerCourseSelect.value;
-  fillManagerForm(getManagerCourse());
+  managerResult.textContent = "";
+  render();
 });
 
 sidebarAdminButton.addEventListener("click", () => {
   adminMode = true;
   adminView = "editor";
+  selectedManagerCourseId = "__new__";
   render();
 });
 
@@ -1047,13 +1069,8 @@ downloadCertificateButton.addEventListener("click", () => {
 
 newTrainingButton.addEventListener("click", () => {
   if (!canManageTrainings()) return;
-  const training = createBlankTraining();
-  courses.push(training);
-  selectedService = training.service;
-  expandedServices.add(selectedService);
-  selectedCourseId = training.id;
-  selectedManagerCourseId = training.id;
-  managerResult.textContent = "New training created. Fill the fields, then save.";
+  selectedManagerCourseId = "__new__";
+  managerResult.textContent = "";
   render();
 });
 
@@ -1065,7 +1082,7 @@ deleteTrainingButton.addEventListener("click", async () => {
 
   courses = courses.filter((item) => item.id !== course.id);
   selectedCourseId = courses[0]?.id || "";
-  selectedManagerCourseId = selectedCourseId;
+  selectedManagerCourseId = "__new__";
   await saveCoursesToServer();
   managerResult.textContent = "Training deleted.";
   render();
@@ -1103,8 +1120,9 @@ managerForm.addEventListener("submit", async (event) => {
     }
 
     const existing = getManagerCourse();
+    const draft = createBlankTraining();
     const nextCourse = {
-      id: existing?.id || `training-${Date.now()}`,
+      id: existing?.id || draft.id,
       service: managerForm.elements.service.value,
       division: managerForm.elements.division.value,
       title: managerForm.elements.title.value,
@@ -1153,7 +1171,7 @@ async function init() {
   selectedCourseId = courses[0]?.id || "";
   selectedService = courses[0]?.service || serviceSections[0];
   expandedServices.add(selectedService);
-  selectedManagerCourseId = selectedCourseId;
+  selectedManagerCourseId = "__new__";
 
   if (isSignedIn()) {
     const saved = await api("/api/progress");
