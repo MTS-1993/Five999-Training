@@ -25,6 +25,15 @@ const {
   SESSION_SECRET = "replace-this-session-secret-before-production",
 } = process.env;
 
+const OLD_EXAMPLE_TRAINING_IDS = new Set([
+  "rpu",
+  "ambulance-clinical-response",
+  "fire-incident-command",
+  "sar-search-planning",
+  "highways-traffic-management",
+  "ntp-rail-response",
+]);
+
 const pool = DATABASE_URL
   ? new Pool({
       connectionString: DATABASE_URL,
@@ -194,7 +203,7 @@ async function getAccess(user) {
 function sanitizeCourses(courses) {
   if (!Array.isArray(courses)) return [];
 
-  return courses.map((course, index) => ({
+  return courses.filter((course) => !OLD_EXAMPLE_TRAINING_IDS.has(course.id)).map((course, index) => ({
     id: String(course.id || `training-${Date.now()}-${index}`).replace(/[^a-z0-9-]/gi, "-"),
     service: String(course.service || course.division || "United Kingdom Police Service").slice(0, 120),
     division: String(course.division || "General"),
@@ -237,14 +246,16 @@ function sanitizeCourses(courses) {
 }
 
 async function getCourses() {
+  const clean = (items) => sanitizeCourses(items);
+
   if (pool) {
     await ensureDatabase();
     const result = await pool.query("select courses from training_courses where id = 1");
-    return result.rows[0]?.courses || [];
+    return clean(result.rows[0]?.courses || []);
   }
 
   try {
-    return JSON.parse(await fs.readFile(COURSES_FILE, "utf8"));
+    return clean(JSON.parse(await fs.readFile(COURSES_FILE, "utf8")));
   } catch {
     return [];
   }

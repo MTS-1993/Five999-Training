@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Five999 Specialist Training</title>
-    <link rel="stylesheet" href="styles.css?v=20260511-3" />
+    <link rel="stylesheet" href="styles.css?v=20260511-4" />
   </head>
   <body>
     <div class="app-shell">
@@ -12,12 +12,19 @@
         <div class="brand">
           <img
             class="brand-logo"
-            src="assets/five999-training-logo.png?v=20260511-3"
+            src="assets/five999-training-logo.png?v=20260511-4"
             alt="Five999 Training"
           />
         </div>
 
         <nav class="course-list" id="courseList" aria-label="Specialist subdivisions"></nav>
+
+        <div class="admin-sidebar-panel" id="adminSidebarPanel" hidden>
+          <p>Command Area</p>
+          <button class="primary-button" id="sidebarAdminButton" type="button">
+            Create/Edit/Delete Trainings
+          </button>
+        </div>
 
         <div class="sidebar-footer">
           <span class="status-dot"></span>
@@ -185,6 +192,6 @@
       </main>
     </div>
 
-    <script src="app.js?v=20260511-3"></script>
+    <script src="app.js?v=20260511-4"></script>
   </body>
 </html>
