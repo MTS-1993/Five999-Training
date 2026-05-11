@@ -5,7 +5,7 @@ A Render-hosted training dashboard for Five999 players to sign in with Discord, 
 ## Features
 
 - Specialist subdivision training modules
-- Sidebar sections for:
+- Empty by default, with sidebar sections for:
   - United Kingdom Police Service
   - United Kingdom Ambulance Service
   - United Kingdom Fire and Rescue Service
@@ -15,7 +15,7 @@ A Render-hosted training dashboard for Five999 players to sign in with Discord, 
 - Discord OAuth2 sign-in
 - Command-only training add/edit tools
 - Leadership-only training and division delete/admin tools
-- Dashboard-based training builder, no JSON editing required
+- Separate role-locked Create/Edit/Delete area, no JSON editing required
 - Optional image URLs and resource URLs for trainings and modules
 - Quiz locked until all modules are marked read
 - 80% pass requirement
@@ -61,6 +61,7 @@ Use the same value for `DISCORD_REDIRECT_URI`.
 - Command members can add and edit trainings from the dashboard.
 - Leadership Team members can add, edit, and delete trainings/divisions from the dashboard.
 - Training creators can add modules, quiz questions, image URLs, and resource URLs using buttons and fields.
+The app now starts with no example trainings. Importing `database/full-import.sql` also clears the training list to empty.
 
 To get role IDs in Discord, enable Developer Mode, right-click the role, and copy the role ID.
 

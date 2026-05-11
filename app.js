@@ -10,7 +10,7 @@ const serviceSections = [
   "National Transport Police",
 ];
 
-let courses = [
+const exampleCourses = [
   {
     id: "rpu",
     service: "United Kingdom Police Service",
@@ -233,15 +233,17 @@ let courses = [
   },
 ];
 
+let courses = [];
 let selectedService = serviceSections[0];
 let expandedServices = new Set([serviceSections[0]]);
-let selectedCourseId = courses[0].id;
+let selectedCourseId = "";
 let selectedModuleIndex = 0;
 let progress = {};
 let currentUser = null;
 let currentAccess = null;
 let authConfigured = false;
 let selectedManagerCourseId = "";
+let adminMode = false;
 
 const courseList = document.getElementById("courseList");
 const courseTitle = document.getElementById("courseTitle");
@@ -274,6 +276,7 @@ const moduleBuilder = document.getElementById("moduleBuilder");
 const quizBuilder = document.getElementById("quizBuilder");
 const managerForm = document.getElementById("managerForm");
 const managerResult = document.getElementById("managerResult");
+const trainingAreas = [...document.querySelectorAll(".training-area")];
 
 ticketLink.href = DISCORD_TICKET_URL;
 
@@ -397,9 +400,25 @@ function renderAccount() {
       : "Player";
   accountActions.innerHTML = `
     <span class="account-chip">Signed in as <strong>${displayName}</strong> &middot; ${roleLabel}</span>
+    ${
+      canManageTrainings()
+        ? `<button class="ghost-button" id="dashboardModeButton" type="button">Training Dashboard</button>
+           <button class="primary-button" id="adminModeButton" type="button">Create/Edit/Delete</button>`
+        : ""
+    }
     <button class="ghost-button" id="resetProgress" type="button" title="Clear saved progress">Reset Progress</button>
     <button class="ghost-button" id="logoutButton" type="button">Log Out</button>
   `;
+
+  document.getElementById("dashboardModeButton")?.addEventListener("click", () => {
+    adminMode = false;
+    render();
+  });
+
+  document.getElementById("adminModeButton")?.addEventListener("click", () => {
+    adminMode = true;
+    render();
+  });
 
   document.getElementById("resetProgress").addEventListener("click", () => {
     progress = {};
@@ -471,7 +490,19 @@ function modulePoints(module) {
 }
 
 function fillManagerForm(course) {
-  if (!course) return;
+  if (!course) {
+    managerForm.elements.service.value = selectedService || serviceSections[0];
+    managerForm.elements.division.value = "";
+    managerForm.elements.title.value = "";
+    managerForm.elements.tag.value = "";
+    managerForm.elements.icon.value = "TR";
+    managerForm.elements.summary.value = "";
+    managerForm.elements.imageUrl.value = "";
+    managerForm.elements.resourceUrl.value = "";
+    renderModuleBuilder([]);
+    renderQuizBuilder([]);
+    return;
+  }
   const normalized = normalizeCourse(course);
   managerForm.elements.service.value = normalized.service;
   managerForm.elements.division.value = normalized.division;
@@ -602,13 +633,13 @@ function renderQuizBuilder(quiz = []) {
 }
 
 function renderManagement() {
-  managementPanel.hidden = !canManageTrainings();
-  if (!canManageTrainings()) return;
+  managementPanel.hidden = !canManageTrainings() || !adminMode;
+  if (!canManageTrainings() || !adminMode) return;
 
   managementAccess.textContent = canDeleteTrainings()
     ? "Leadership admin rights"
     : "Command add/edit rights";
-  deleteTrainingButton.hidden = !canDeleteTrainings();
+  deleteTrainingButton.hidden = !canDeleteTrainings() || !courses.length;
 
   managerService.innerHTML = serviceSections
     .map((service) => `<option value="${escapeHtml(service)}">${escapeHtml(service)}</option>`)
@@ -618,14 +649,16 @@ function renderManagement() {
     selectedManagerCourseId = courses[0]?.id || "";
   }
 
-  managerCourseSelect.innerHTML = courses
-    .map(
-      (course) =>
-        `<option value="${escapeHtml(course.id)}" ${
-          course.id === selectedManagerCourseId ? "selected" : ""
-        }>${escapeHtml(course.service)} - ${escapeHtml(course.title)}</option>`,
-    )
-    .join("");
+  managerCourseSelect.innerHTML = courses.length
+    ? courses
+        .map(
+          (course) =>
+            `<option value="${escapeHtml(course.id)}" ${
+              course.id === selectedManagerCourseId ? "selected" : ""
+            }>${escapeHtml(course.service)} - ${escapeHtml(course.title)}</option>`,
+        )
+        .join("")
+    : `<option value="">No trainings created yet</option>`;
 
   fillManagerForm(getManagerCourse());
 }
@@ -635,7 +668,7 @@ async function saveCoursesToServer() {
     method: "PUT",
     body: JSON.stringify({ courses }),
   });
-  courses = result.courses?.length ? result.courses.map(normalizeCourse) : courses;
+  courses = Array.isArray(result.courses) ? result.courses.map(normalizeCourse) : courses;
   if (!courses.some((course) => course.id === selectedCourseId)) selectedCourseId = courses[0]?.id || "";
   if (!courses.some((course) => course.id === selectedManagerCourseId)) {
     selectedManagerCourseId = courses[0]?.id || "";
@@ -806,7 +839,31 @@ function renderCompletion(course) {
 function render() {
   normalizeCourses();
   const course = getCourse();
-  if (!course) return;
+  renderCourseList();
+  renderAccount();
+  trainingAreas.forEach((area) => {
+    area.hidden = adminMode;
+  });
+  if (!course) {
+    courseTitle.textContent = adminMode ? "Training Management" : "No Trainings Created";
+    courseTag.textContent = "Specialist subdivisions";
+    courseHeading.textContent = "No trainings have been added yet.";
+    courseSummary.textContent =
+      canManageTrainings()
+        ? "Open Create/Edit/Delete to add the first training."
+        : "A Command or Leadership member needs to create trainings before players can begin.";
+    courseMedia.innerHTML = "";
+    moduleProgress.textContent = "0 / 0 read";
+    quizProgress.textContent = "Not available";
+    certificateProgress.textContent = "Locked";
+    moduleTabs.innerHTML = "";
+    moduleBody.innerHTML = "<p>No training content is available yet.</p>";
+    quizForm.innerHTML = "";
+    scorePill.textContent = "80% required";
+    completionPanel.hidden = true;
+    renderManagement();
+    return;
+  }
   const courseProgress = getCourseProgress(course.id);
   selectedService = course.service || selectedService;
 
@@ -824,8 +881,6 @@ function render() {
 
   courseMedia.innerHTML = renderMedia(course.imageUrl, course.resourceUrl);
 
-  renderCourseList();
-  renderAccount();
   renderModules(course);
   renderQuiz(course);
   renderCompletion(course);
