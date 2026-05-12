@@ -485,27 +485,27 @@ h2 {
 }
 
 .theme-icon-sun {
-  width: 18px;
-  height: 18px;
+  width: 14px;
+  height: 14px;
   border-radius: 999px;
   background: #f0a620;
   box-shadow:
-    0 -9px 0 -6px #f0a620,
-    0 9px 0 -6px #f0a620,
-    9px 0 0 -6px #f0a620,
-    -9px 0 0 -6px #f0a620,
-    6px 6px 0 -6px #f0a620,
-    -6px -6px 0 -6px #f0a620,
-    6px -6px 0 -6px #f0a620,
-    -6px 6px 0 -6px #f0a620;
+    0 -11px 0 -5px #f0a620,
+    0 11px 0 -5px #f0a620,
+    11px 0 0 -5px #f0a620,
+    -11px 0 0 -5px #f0a620,
+    8px 8px 0 -5px #f0a620,
+    -8px -8px 0 -5px #f0a620,
+    8px -8px 0 -5px #f0a620,
+    -8px 8px 0 -5px #f0a620;
 }
 
 .theme-icon-moon {
-  width: 18px;
-  height: 18px;
+  width: 19px;
+  height: 19px;
   border-radius: 999px;
-  background: #c9d7ff;
-  box-shadow: inset -6px 0 0 #6b86d6;
+  background: transparent;
+  box-shadow: -5px 0 0 0 #c9d7ff;
   opacity: 0;
   transform: scale(0.75);
 }
