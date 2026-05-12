@@ -530,15 +530,12 @@ app.put("/api/courses", requireUser, async (req, res, next) => {
     }
 
     const currentCourses = await getCourses();
-    const incomingCourses = sanitizeCourses(req.body.courses || []);
+    let incomingCourses = sanitizeCourses(req.body.courses || []);
 
     if (!access.leadership) {
-      const incomingIds = incomingCourses.map((course) => course.id);
-      const removedExistingTraining = currentCourses.some((course) => !incomingIds.includes(course.id));
-      if (removedExistingTraining) {
-        res.status(403).json({ error: "Only Leadership Team can delete trainings or divisions." });
-        return;
-      }
+      const incomingIds = new Set(incomingCourses.map((course) => course.id));
+      const preservedCourses = currentCourses.filter((course) => !incomingIds.has(course.id));
+      incomingCourses = [...incomingCourses, ...preservedCourses];
     }
 
     res.json({ courses: await saveCourses(incomingCourses) });
