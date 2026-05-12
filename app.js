@@ -22,7 +22,7 @@ const oldExampleTrainingIds = new Set([
 
 let courses = [];
 let selectedService = serviceSections[0];
-let expandedServices = new Set([serviceSections[0]]);
+let expandedServices = new Set();
 let selectedCourseId = "";
 let selectedModuleIndex = 0;
 let currentView = "home";
@@ -1325,7 +1325,7 @@ async function init() {
   }
   selectedCourseId = "";
   selectedService = courses[0]?.service || serviceSections[0];
-  expandedServices.add(selectedService);
+  expandedServices = new Set();
   selectedManagerCourseId = "__new__";
 
   if (isSignedIn()) {
