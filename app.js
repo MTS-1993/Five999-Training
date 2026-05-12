@@ -8,6 +8,7 @@ const serviceSections = [
   "UK Search & Rescue",
   "UK Highways",
   "National Transport Police",
+  "Emergency Operations Centre",
 ];
 
 const oldExampleTrainingIds = new Set([

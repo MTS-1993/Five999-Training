@@ -13,6 +13,7 @@ A Render-hosted training dashboard for Five999 players to sign in with Discord, 
   - UK Search & Rescue
   - UK Highways
   - National Transport Police
+  - Emergency Operations Centre
 - Discord OAuth2 sign-in
 - Command-only training add/edit tools
 - Leadership-only training and division delete/admin tools
