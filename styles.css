@@ -462,33 +462,14 @@ h2 {
   margin-top: 24px;
 }
 
-.theme-toggle-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px 14px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.78);
-}
-
-.dark-theme .theme-toggle-row {
-  background: rgba(15, 34, 51, 0.88);
-}
-
-.theme-toggle-row span {
-  color: var(--muted);
-  font-weight: 800;
-}
-
 .theme-toggle-button {
   position: relative;
   display: inline-grid;
   grid-template-columns: 1fr 1fr;
   align-items: center;
-  width: 74px;
-  height: 38px;
+  flex: 0 0 auto;
+  width: 54px;
+  height: 30px;
   padding: 3px;
   border: 1px solid var(--line);
   border-radius: 999px;
@@ -502,8 +483,8 @@ h2 {
   position: absolute;
   top: 3px;
   left: 3px;
-  width: 30px;
-  height: 30px;
+  width: 22px;
+  height: 22px;
   border-radius: 999px;
   background: linear-gradient(135deg, #ffd76d, #f0a620);
   box-shadow: 0 4px 10px rgba(240, 166, 32, 0.28);
@@ -517,8 +498,8 @@ h2 {
   z-index: 1;
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
+  width: 24px;
+  height: 24px;
   overflow: hidden;
   color: transparent;
 }
@@ -542,7 +523,7 @@ h2 {
 }
 
 .dark-theme .theme-toggle-button::before {
-  left: 39px;
+  left: 27px;
   background: linear-gradient(135deg, #c9d7ff, #6b86d6);
   box-shadow: 0 4px 10px rgba(107, 134, 214, 0.32);
 }

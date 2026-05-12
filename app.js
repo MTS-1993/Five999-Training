@@ -66,7 +66,6 @@ const feedbackRating = document.getElementById("feedbackRating");
 const feedbackComment = document.getElementById("feedbackComment");
 const feedbackResult = document.getElementById("feedbackResult");
 const landingPanel = document.getElementById("landingPanel");
-const themeToggleButton = document.getElementById("themeToggleButton");
 const profilePanel = document.getElementById("profilePanel");
 const profileSummary = document.getElementById("profileSummary");
 const profileGrid = document.getElementById("profileGrid");
@@ -103,10 +102,21 @@ ticketLink.href = DISCORD_TICKET_URL;
 
 function applyTheme() {
   document.body.classList.toggle("dark-theme", currentTheme === "dark");
-  themeToggleButton.setAttribute(
-    "aria-label",
-    currentTheme === "dark" ? "Switch to light mode" : "Switch to dark mode",
-  );
+  document.querySelectorAll("[data-theme-toggle]").forEach((button) => {
+    button.setAttribute(
+      "aria-label",
+      currentTheme === "dark" ? "Switch to light mode" : "Switch to dark mode",
+    );
+  });
+}
+
+function themeToggleMarkup() {
+  return `
+    <button class="theme-toggle-button compact-theme-toggle" data-theme-toggle type="button" aria-label="Switch theme">
+      <span class="sun-icon">Sun</span>
+      <span class="moon-icon">Moon</span>
+    </button>
+  `;
 }
 
 async function api(path, options = {}) {
@@ -255,9 +265,12 @@ function renderAccount() {
         ? `<button class="ghost-button" id="dashboardModeButton" type="button">Training Dashboard</button>`
         : ""
     }
+    ${themeToggleMarkup()}
     <button class="ghost-button" id="resetProgress" type="button" title="Clear saved progress">Reset Progress</button>
     <button class="ghost-button" id="logoutButton" type="button">Log Out</button>
   `;
+  applyTheme();
+  accountActions.querySelector("[data-theme-toggle]").addEventListener("click", toggleTheme);
 
   document.getElementById("dashboardModeButton")?.addEventListener("click", () => {
     adminMode = false;
@@ -1309,15 +1322,15 @@ sidebarAnalyticsButton.addEventListener("click", () => {
   render();
 });
 
-refreshStatsButton.addEventListener("click", () => {
-  statsLoaded = false;
-  loadStats();
-});
-
-themeToggleButton.addEventListener("click", () => {
+function toggleTheme() {
   currentTheme = currentTheme === "dark" ? "light" : "dark";
   localStorage.setItem("five999TrainingTheme", currentTheme);
   applyTheme();
+}
+
+refreshStatsButton.addEventListener("click", () => {
+  statsLoaded = false;
+  loadStats();
 });
 
 downloadCertificateButton.addEventListener("click", () => {
