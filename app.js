@@ -48,13 +48,22 @@ const certificateProgress = document.getElementById("certificateProgress");
 const moduleTabs = document.getElementById("moduleTabs");
 const moduleBody = document.getElementById("moduleBody");
 const markRead = document.getElementById("markRead");
+const courseStartPanel = document.getElementById("courseStartPanel");
+const startTrainingButton = document.getElementById("startTrainingButton");
+const courseStartText = document.getElementById("courseStartText");
 const quizForm = document.getElementById("quizForm");
 const scorePill = document.getElementById("scorePill");
 const completionPanel = document.getElementById("completionPanel");
 const certificateMessage = document.getElementById("certificateMessage");
+const certificatePreviewWrap = document.getElementById("certificatePreviewWrap");
+const certificatePreview = document.getElementById("certificatePreview");
 const downloadCertificateButton = document.getElementById("downloadCertificateButton");
 const downloadPdfCertificateButton = document.getElementById("downloadPdfCertificateButton");
 const ticketLink = document.getElementById("ticketLink");
+const feedbackForm = document.getElementById("feedbackForm");
+const feedbackRating = document.getElementById("feedbackRating");
+const feedbackComment = document.getElementById("feedbackComment");
+const feedbackResult = document.getElementById("feedbackResult");
 const landingPanel = document.getElementById("landingPanel");
 const profilePanel = document.getElementById("profilePanel");
 const profileSummary = document.getElementById("profileSummary");
@@ -170,10 +179,12 @@ function getCourse() {
 function getCourseProgress(courseId) {
   if (!progress[courseId]) {
     progress[courseId] = {
+      started: false,
       readModules: [],
       quizScore: null,
       passed: false,
       completedAt: null,
+      feedback: null,
     };
   }
   return progress[courseId];
@@ -183,7 +194,7 @@ function getProgressState(course) {
   const courseProgress = getCourseProgress(course.id);
   if (courseProgress.passed) return { label: "Completed", className: "complete" };
   if (courseProgress.quizScore !== null) return { label: "Failed", className: "failed" };
-  if ((courseProgress.readModules || []).length > 0) return { label: "In progress", className: "progress" };
+  if (courseProgress.started || (courseProgress.readModules || []).length > 0) return { label: "In progress", className: "progress" };
   return { label: "Not started", className: "idle" };
 }
 
@@ -877,6 +888,8 @@ function renderCompletion(course) {
   const courseProgress = getCourseProgress(course.id);
   completionPanel.hidden = !courseProgress.passed;
   certificateProgress.textContent = courseProgress.passed ? "Unlocked" : "Locked";
+  certificatePreviewWrap.hidden = true;
+  feedbackResult.textContent = "";
 
   if (!courseProgress.passed) return;
 
@@ -892,6 +905,18 @@ function renderCompletion(course) {
     Completed: ${courseProgress.completedAt}<br /><br />
     Please open a support ticket in Discord to obtain the role via FMS.
   `;
+  feedbackRating.value = courseProgress.feedback?.rating || "";
+  feedbackComment.value = courseProgress.feedback?.comment || "";
+  feedbackResult.textContent = courseProgress.feedback ? "Feedback saved. Thank you." : "";
+  createCertificateCanvas()
+    .then((canvas) => {
+      if (!canvas || getCourse()?.id !== course.id) return;
+      certificatePreview.src = canvas.toDataURL("image/png");
+      certificatePreviewWrap.hidden = false;
+    })
+    .catch(() => {
+      certificatePreviewWrap.hidden = true;
+    });
 }
 
 function loadImage(src) {
@@ -1087,6 +1112,7 @@ function render() {
     courseTitle.textContent = "Training Dashboard";
     courseMedia.innerHTML = "";
     renderHeroImage("");
+    courseStartPanel.hidden = true;
     moduleProgress.textContent = "0 / 0 read";
     quizProgress.textContent = "Not available";
     certificateProgress.textContent = "Locked";
@@ -1100,11 +1126,12 @@ function render() {
     return;
   }
   const courseProgress = getCourseProgress(course.id);
+  const hasStarted = Boolean(courseProgress.started || courseProgress.readModules.length || courseProgress.quizScore !== null || courseProgress.passed);
   selectedService = course.service || selectedService;
 
   courseTitle.textContent = course.title;
   courseTag.textContent = `${course.service} / ${course.division}`;
-  courseHeading.textContent = "Complete the briefing, then pass the quiz.";
+  courseHeading.textContent = hasStarted ? "Complete the briefing, then pass the quiz." : "Review the overview, then start when ready.";
   courseSummary.textContent = course.summary;
   moduleProgress.textContent = `${courseProgress.readModules.length} / ${course.modules.length} read`;
   quizProgress.textContent =
@@ -1116,12 +1143,36 @@ function render() {
 
   renderHeroImage(course.imageUrl);
   courseMedia.innerHTML = renderMedia("", course.resourceUrl);
+  courseStartPanel.hidden = hasStarted;
+  courseStartText.textContent = course.quizEnabled === false
+    ? "This training has no final quiz. Read each module and mark it complete to unlock your confirmation and certificate."
+    : `This training includes ${course.modules.length} module${course.modules.length === 1 ? "" : "s"} and a final quiz. You need ${PASS_MARK}% to pass.`;
+  startTrainingButton.disabled = !isSignedIn();
+  startTrainingButton.textContent = isSignedIn() ? "Start Training" : "Sign in to Start";
 
-  renderModules(course);
-  renderQuiz(course);
-  renderCompletion(course);
+  if (hasStarted) {
+    renderModules(course);
+    renderQuiz(course);
+    renderCompletion(course);
+  } else {
+    moduleTabs.innerHTML = "";
+    moduleBody.innerHTML = "<p>Press Start Training to unlock the briefing modules.</p>";
+    quizForm.innerHTML = "<p class=\"result-text\">The quiz unlocks after you start and read the briefing modules.</p>";
+    scorePill.textContent = course.quizEnabled === false ? "Quiz disabled" : "80% required";
+    completionPanel.hidden = true;
+  }
   renderManagement();
 }
+
+startTrainingButton.addEventListener("click", () => {
+  if (!isSignedIn()) return;
+  const course = getCourse();
+  if (!course) return;
+  const courseProgress = getCourseProgress(course.id);
+  courseProgress.started = true;
+  saveProgress();
+  render();
+});
 
 markRead.addEventListener("click", () => {
   if (!isSignedIn()) return;
@@ -1185,6 +1236,26 @@ quizForm.addEventListener("submit", (event) => {
   if (score >= PASS_MARK) {
     completionPanel.scrollIntoView({ behavior: "smooth", block: "start" });
   }
+});
+
+feedbackForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  if (!isSignedIn()) return;
+  const course = getCourse();
+  if (!course) return;
+  const courseProgress = getCourseProgress(course.id);
+  if (!courseProgress.passed) return;
+
+  courseProgress.feedback = {
+    rating: feedbackRating.value,
+    comment: feedbackComment.value.trim(),
+    submittedAt: new Date().toLocaleString("en-GB", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }),
+  };
+  saveProgress();
+  feedbackResult.textContent = "Feedback saved. Thank you.";
 });
 
 managerCourseSelect.addEventListener("change", () => {

@@ -6,6 +6,7 @@ A Render-hosted training dashboard for Five999 players to sign in with Discord, 
 
 - Specialist subdivision training modules
 - Intro landing page explaining how players navigate trainings and save completion proof
+- Start Training button before modules and quizzes unlock
 - Empty by default, with sidebar sections for:
   - United Kingdom Police Service
   - United Kingdom Ambulance Service
@@ -30,6 +31,8 @@ A Render-hosted training dashboard for Five999 players to sign in with Discord, 
 - Completion message for players to screenshot
 - Downloadable completion certificate with player name, course, date, and Five999 logo
 - Downloadable PDF certificate as well as PNG certificate
+- Certificate preview after completing a course
+- Player feedback form after completing a course
 - Optional Discord DM notification when a player completes a training
 - Discord support ticket button for role requests through FMS
 - Mobile-friendly Command training management layout

@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Five999 Specialist Training</title>
-    <link rel="stylesheet" href="styles.css?v=20260512-3" />
+    <link rel="stylesheet" href="styles.css?v=20260512-4" />
   </head>
   <body>
     <div class="app-shell">
@@ -12,7 +12,7 @@
         <div class="brand">
           <img
             class="brand-logo"
-            src="assets/five999-training-logo.png?v=20260512-3"
+            src="assets/five999-training-logo.png?v=20260512-4"
             alt="Five999 Training"
           />
         </div>
@@ -120,6 +120,17 @@
           </div>
         </section>
 
+        <section class="course-start-panel training-area" id="courseStartPanel">
+          <div>
+            <p class="eyebrow">Course overview</p>
+            <h2>Ready to begin?</h2>
+            <p id="courseStartText">
+              Start this training when you are ready. Your module progress and quiz result will be saved to your Discord account.
+            </p>
+          </div>
+          <button class="primary-button" id="startTrainingButton" type="button">Start Training</button>
+        </section>
+
         <section class="profile-panel" id="profilePanel" hidden>
           <div class="panel-heading">
             <div>
@@ -160,6 +171,10 @@
           <p class="eyebrow">Training complete</p>
           <h2>Screenshot this confirmation</h2>
           <div class="certificate" id="certificateMessage"></div>
+          <div class="certificate-preview-wrap" id="certificatePreviewWrap" hidden>
+            <p class="eyebrow">Certificate preview</p>
+            <img id="certificatePreview" alt="Certificate preview" />
+          </div>
           <button class="primary-button ticket-link" id="downloadCertificateButton" type="button">
             Download PNG Certificate
           </button>
@@ -169,6 +184,27 @@
           <a class="primary-button ticket-link" id="ticketLink" href="#" target="_blank" rel="noreferrer">
             Open Five999 Discord Ticket Section
           </a>
+          <form class="feedback-form" id="feedbackForm">
+            <div>
+              <p class="eyebrow">Training feedback</p>
+              <h3>Was this training clear?</h3>
+            </div>
+            <label class="field-label" for="feedbackRating">Rating</label>
+            <select id="feedbackRating" name="rating">
+              <option value="">Choose a rating</option>
+              <option value="5">5 - Very clear</option>
+              <option value="4">4 - Clear</option>
+              <option value="3">3 - Okay</option>
+              <option value="2">2 - Needs improvement</option>
+              <option value="1">1 - Unclear</option>
+            </select>
+            <label class="field-label" for="feedbackComment">Comments</label>
+            <textarea id="feedbackComment" name="comment" rows="3" placeholder="Optional feedback for Command"></textarea>
+            <div class="manager-actions">
+              <button class="ghost-button" type="submit">Submit Feedback</button>
+              <p class="result-text" id="feedbackResult"></p>
+            </div>
+          </form>
         </section>
 
         <section class="management-panel" id="managementPanel" hidden>
@@ -302,6 +338,6 @@
       </main>
     </div>
 
-    <script src="app.js?v=20260512-3"></script>
+    <script src="app.js?v=20260512-4"></script>
   </body>
 </html>
