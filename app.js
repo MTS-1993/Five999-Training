@@ -103,7 +103,10 @@ ticketLink.href = DISCORD_TICKET_URL;
 
 function applyTheme() {
   document.body.classList.toggle("dark-theme", currentTheme === "dark");
-  themeToggleButton.textContent = currentTheme === "dark" ? "Light Mode" : "Dark Mode";
+  themeToggleButton.setAttribute(
+    "aria-label",
+    currentTheme === "dark" ? "Switch to light mode" : "Switch to dark mode",
+  );
 }
 
 async function api(path, options = {}) {

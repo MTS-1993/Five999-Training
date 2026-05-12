@@ -482,6 +482,71 @@ h2 {
   font-weight: 800;
 }
 
+.theme-toggle-button {
+  position: relative;
+  display: inline-grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  width: 74px;
+  height: 38px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #ffffff;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.theme-toggle-button::before {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #ffd76d, #f0a620);
+  box-shadow: 0 4px 10px rgba(240, 166, 32, 0.28);
+  transition:
+    left 160ms ease,
+    background 160ms ease;
+}
+
+.theme-toggle-button span {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  overflow: hidden;
+  color: transparent;
+}
+
+.theme-toggle-button span::before {
+  color: var(--ink);
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.sun-icon::before {
+  content: "☀";
+}
+
+.moon-icon::before {
+  content: "☾";
+}
+
+.dark-theme .theme-toggle-button {
+  background: var(--surface-2);
+}
+
+.dark-theme .theme-toggle-button::before {
+  left: 39px;
+  background: linear-gradient(135deg, #c9d7ff, #6b86d6);
+  box-shadow: 0 4px 10px rgba(107, 134, 214, 0.32);
+}
+
 .landing-panel[hidden] {
   display: none;
 }
