@@ -462,70 +462,66 @@ h2 {
   margin-top: 24px;
 }
 
-.theme-toggle-button {
+.theme-icon-button {
   position: relative;
   display: inline-grid;
-  grid-template-columns: 1fr 1fr;
   place-items: center;
   flex: 0 0 auto;
-  width: 58px;
-  height: 32px;
-  padding: 0;
+  width: 42px;
+  height: 42px;
   border: 1px solid var(--line);
-  border-radius: 999px;
-  background: #ffffff;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92);
   color: var(--ink);
   cursor: pointer;
 }
 
-.theme-toggle-button::before {
-  content: "";
+.theme-icon-button span {
   position: absolute;
-  top: 4px;
-  left: 4px;
-  width: 24px;
-  height: 24px;
-  border-radius: 999px;
-  background: linear-gradient(135deg, #ffd76d, #f0a620);
-  box-shadow: 0 4px 10px rgba(240, 166, 32, 0.28);
+  display: block;
   transition:
-    left 160ms ease,
-    background 160ms ease;
+    opacity 140ms ease,
+    transform 140ms ease;
 }
 
-.theme-toggle-button span {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  place-items: center;
-  width: 29px;
-  height: 30px;
-  overflow: hidden;
-  color: transparent;
+.theme-icon-sun {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: #f0a620;
+  box-shadow:
+    0 -9px 0 -6px #f0a620,
+    0 9px 0 -6px #f0a620,
+    9px 0 0 -6px #f0a620,
+    -9px 0 0 -6px #f0a620,
+    6px 6px 0 -6px #f0a620,
+    -6px -6px 0 -6px #f0a620,
+    6px -6px 0 -6px #f0a620,
+    -6px 6px 0 -6px #f0a620;
 }
 
-.theme-toggle-button span::before {
-  color: var(--ink);
-  font-size: 0.86rem;
-  line-height: 1;
+.theme-icon-moon {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: #c9d7ff;
+  box-shadow: inset -6px 0 0 #6b86d6;
+  opacity: 0;
+  transform: scale(0.75);
 }
 
-.sun-icon::before {
-  content: "☀";
+.dark-theme .theme-icon-button {
+  background: rgba(19, 43, 64, 0.92);
 }
 
-.moon-icon::before {
-  content: "☾";
+.dark-theme .theme-icon-sun {
+  opacity: 0;
+  transform: scale(0.75);
 }
 
-.dark-theme .theme-toggle-button {
-  background: var(--surface-2);
-}
-
-.dark-theme .theme-toggle-button::before {
-  left: 30px;
-  background: linear-gradient(135deg, #c9d7ff, #6b86d6);
-  box-shadow: 0 4px 10px rgba(107, 134, 214, 0.32);
+.dark-theme .theme-icon-moon {
+  opacity: 1;
+  transform: scale(1);
 }
 
 .landing-panel[hidden] {
@@ -581,6 +577,7 @@ h2 {
 }
 
 .dark-theme .ghost-button,
+.dark-theme .theme-icon-button,
 .dark-theme .account-chip {
   background: rgba(19, 43, 64, 0.92);
   color: var(--ink);

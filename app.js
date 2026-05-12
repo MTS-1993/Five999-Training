@@ -112,9 +112,9 @@ function applyTheme() {
 
 function themeToggleMarkup() {
   return `
-    <button class="theme-toggle-button compact-theme-toggle" data-theme-toggle type="button" aria-label="Switch theme">
-      <span class="sun-icon">Sun</span>
-      <span class="moon-icon">Moon</span>
+    <button class="theme-icon-button" data-theme-toggle type="button" aria-label="Switch theme">
+      <span class="theme-icon-sun" aria-hidden="true"></span>
+      <span class="theme-icon-moon" aria-hidden="true"></span>
     </button>
   `;
 }
