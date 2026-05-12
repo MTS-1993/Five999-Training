@@ -97,7 +97,8 @@ async function api(path, options = {}) {
   });
 
   if (!response.ok) {
-    throw new Error((await response.json().catch(() => ({}))).error || "Request failed");
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload.error || `Request failed with status ${response.status}`);
   }
 
   return response.json();
@@ -413,8 +414,8 @@ function readImageFile(file) {
       reject(new Error("Only image files can be uploaded."));
       return;
     }
-    if (file.size > 4 * 1024 * 1024) {
-      reject(new Error("Images must be under 4MB."));
+    if (file.size > 8 * 1024 * 1024) {
+      reject(new Error("Images must be under 8MB each."));
       return;
     }
 
@@ -1293,16 +1294,16 @@ managerForm.addEventListener("submit", async (event) => {
       ? courses.map((course) => (course.id === nextCourse.id ? nextCourse : course))
       : [...courses, nextCourse];
 
-  selectedService = nextCourse.service;
-  expandedServices.add(selectedService);
-  selectedCourseId = nextCourse.id;
-  selectedManagerCourseId = nextCourse.id;
-  currentView = "admin";
-  await saveCoursesToServer();
+    selectedService = nextCourse.service;
+    expandedServices.add(selectedService);
+    selectedCourseId = nextCourse.id;
+    selectedManagerCourseId = nextCourse.id;
+    currentView = "admin";
+    await saveCoursesToServer();
     managerResult.textContent = "Training saved.";
     render();
   } catch (error) {
-    managerResult.textContent = "Check the training fields, then try again.";
+    managerResult.textContent = error.message || "Check the training fields, then try again.";
   }
 });
 

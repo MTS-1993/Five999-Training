@@ -44,7 +44,7 @@ const pool = DATABASE_URL
 
 let databaseReady = false;
 
-app.use(express.json({ limit: "10mb" }));
+app.use(express.json({ limit: "50mb" }));
 
 app.get("/", (req, res) => {
   res.setHeader("Cache-Control", "no-store");
@@ -166,7 +166,7 @@ function sanitizeUrl(value) {
   const url = String(value || "").trim().slice(0, 1000);
   if (!url) return "";
   if (/^data:image\/(png|jpeg|jpg|webp|gif);base64,[a-z0-9+/=]+$/i.test(url)) {
-    return String(value || "").trim().slice(0, 5_000_000);
+    return String(value || "").trim().slice(0, 12_000_000);
   }
   try {
     const parsed = new URL(url);
@@ -655,6 +655,10 @@ app.get("/auth/discord/callback", async (req, res, next) => {
 
 app.use((error, req, res, next) => {
   console.error(error);
+  if (error.type === "entity.too.large") {
+    res.status(413).json({ error: "The training is too large to save. Try using smaller images." });
+    return;
+  }
   res.status(500).json({ error: "Something went wrong." });
 });
 
