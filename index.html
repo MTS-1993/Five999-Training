@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Five999 Specialist Training</title>
-    <link rel="stylesheet" href="styles.css?v=20260512-4" />
+    <link rel="stylesheet" href="styles.css?v=20260512-6" />
   </head>
   <body>
     <div class="app-shell">
@@ -12,7 +12,7 @@
         <div class="brand">
           <img
             class="brand-logo"
-            src="assets/five999-training-logo.png?v=20260512-4"
+            src="assets/five999-training-logo.png?v=20260512-6"
             alt="Five999 Training"
           />
         </div>
@@ -30,8 +30,11 @@
         </div>
 
         <div class="sidebar-footer">
-          <span class="status-dot"></span>
-          <span>Pass mark: 80%</span>
+          <div>
+            <span class="status-dot"></span>
+            <span>Pass mark: 80%</span>
+          </div>
+          <small>&copy; Five RP Group 2026</small>
         </div>
       </aside>
 
@@ -56,6 +59,10 @@
         </section>
 
         <section class="landing-panel" id="landingPanel">
+          <div class="theme-toggle-row">
+            <span>Dashboard theme</span>
+            <button class="ghost-button" id="themeToggleButton" type="button">Dark Mode</button>
+          </div>
           <div class="landing-hero">
             <p class="eyebrow">Five999 Training Hub</p>
             <h2>Welcome to specialist training.</h2>
@@ -257,6 +264,22 @@
                 <tbody id="statsUserBody"></tbody>
               </table>
             </div>
+            <div class="analytics-table-wrap">
+              <h3>Training Feedback</h3>
+              <table class="analytics-table">
+                <thead>
+                  <tr>
+                    <th>User</th>
+                    <th>Training</th>
+                    <th>Service</th>
+                    <th>Rating</th>
+                    <th>Comment</th>
+                    <th>Submitted</th>
+                  </tr>
+                </thead>
+                <tbody id="statsFeedbackBody"></tbody>
+              </table>
+            </div>
           </section>
 
           <div class="manager-layout" id="editorPanel">
@@ -338,6 +361,6 @@
       </main>
     </div>
 
-    <script src="app.js?v=20260512-4"></script>
+    <script src="app.js?v=20260512-6"></script>
   </body>
 </html>

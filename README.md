@@ -20,6 +20,7 @@ A Render-hosted training dashboard for Five999 players to sign in with Discord, 
 - Leadership-only training and division delete/admin tools
 - Separate role-locked Create/Edit/Delete area, no JSON editing required
 - Role-locked admin analytics for Command and Leadership teams
+- Training feedback table in Command analytics
 - Optional image URLs and resource URLs for trainings and modules
 - Uploaded images for trainings and modules, stored with the training record
 - Quiz requirement can be toggled on or off per training
@@ -28,6 +29,7 @@ A Render-hosted training dashboard for Five999 players to sign in with Discord, 
 - 80% pass requirement
 - Saved progress and completed trainings by Discord account
 - Separate player training profile with progress badges for each course
+- Home screen dark/light mode toggle
 - Completion message for players to screenshot
 - Downloadable completion certificate with player name, course, date, and Five999 logo
 - Downloadable PDF certificate as well as PNG certificate
@@ -35,6 +37,7 @@ A Render-hosted training dashboard for Five999 players to sign in with Discord, 
 - Player feedback form after completing a course
 - Optional Discord DM notification when a player completes a training
 - Discord support ticket button for role requests through FMS
+- Sidebar copyright: Five RP Group 2026
 - Mobile-friendly Command training management layout
 - Render web-service configuration included
 

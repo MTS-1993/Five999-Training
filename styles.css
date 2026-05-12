@@ -31,6 +31,20 @@ body {
     sans-serif;
 }
 
+body.dark-theme {
+  --bg: #07131f;
+  --surface: #0f2233;
+  --surface-2: #132b40;
+  --ink: #f4f8fb;
+  --muted: #a8bac6;
+  --line: #274359;
+  --shadow: 0 18px 50px rgba(0, 0, 0, 0.32);
+  background:
+    linear-gradient(135deg, rgba(0, 87, 200, 0.16), transparent 34%),
+    linear-gradient(315deg, rgba(210, 31, 43, 0.12), transparent 34%),
+    var(--bg);
+}
+
 button,
 input,
 select,
@@ -271,9 +285,21 @@ body.admin-mode .sidebar-footer {
 
 .sidebar-footer {
   display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: auto;
+}
+
+.sidebar-footer div {
+  display: flex;
   align-items: center;
   gap: 8px;
-  margin-top: auto;
+}
+
+.sidebar-footer small {
+  color: rgba(248, 251, 252, 0.56);
+  font-size: 0.76rem;
 }
 
 .status-dot {
@@ -436,6 +462,26 @@ h2 {
   margin-top: 24px;
 }
 
+.theme-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.dark-theme .theme-toggle-row {
+  background: rgba(15, 34, 51, 0.88);
+}
+
+.theme-toggle-row span {
+  color: var(--muted);
+  font-weight: 800;
+}
+
 .landing-panel[hidden] {
   display: none;
 }
@@ -453,6 +499,45 @@ h2 {
   background:
     linear-gradient(135deg, rgba(0, 87, 200, 0.12), rgba(0, 140, 114, 0.08)),
     #ffffff;
+}
+
+.dark-theme .landing-hero,
+.dark-theme .landing-note,
+.dark-theme .panel,
+.dark-theme .completion-panel,
+.dark-theme .management-panel,
+.dark-theme .progress-strip,
+.dark-theme .auth-panel,
+.dark-theme .profile-panel,
+.dark-theme .course-start-panel,
+.dark-theme .analytics-panel,
+.dark-theme .manager-form,
+.dark-theme .builder-card,
+.dark-theme .feedback-form,
+.dark-theme .certificate-preview-wrap,
+.dark-theme .stat-card,
+.dark-theme .profile-card,
+.dark-theme .question {
+  background: rgba(15, 34, 51, 0.94);
+}
+
+.dark-theme .landing-steps article,
+.dark-theme .analytics-table,
+.dark-theme .course-button.active,
+.dark-theme .course-button:hover,
+.dark-theme select,
+.dark-theme input,
+.dark-theme textarea,
+.dark-theme .module-tab,
+.dark-theme .answer {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.dark-theme .ghost-button,
+.dark-theme .account-chip {
+  background: rgba(19, 43, 64, 0.92);
+  color: var(--ink);
 }
 
 .landing-hero h2 {

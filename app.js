@@ -26,6 +26,7 @@ let expandedServices = new Set();
 let selectedCourseId = "";
 let selectedModuleIndex = 0;
 let currentView = "home";
+let currentTheme = localStorage.getItem("five999TrainingTheme") || "light";
 let progress = {};
 let currentUser = null;
 let currentAccess = null;
@@ -65,6 +66,7 @@ const feedbackRating = document.getElementById("feedbackRating");
 const feedbackComment = document.getElementById("feedbackComment");
 const feedbackResult = document.getElementById("feedbackResult");
 const landingPanel = document.getElementById("landingPanel");
+const themeToggleButton = document.getElementById("themeToggleButton");
 const profilePanel = document.getElementById("profilePanel");
 const profileSummary = document.getElementById("profileSummary");
 const profileGrid = document.getElementById("profileGrid");
@@ -95,8 +97,14 @@ const refreshStatsButton = document.getElementById("refreshStatsButton");
 const statsSummary = document.getElementById("statsSummary");
 const statsCourseBody = document.getElementById("statsCourseBody");
 const statsUserBody = document.getElementById("statsUserBody");
+const statsFeedbackBody = document.getElementById("statsFeedbackBody");
 
 ticketLink.href = DISCORD_TICKET_URL;
+
+function applyTheme() {
+  document.body.classList.toggle("dark-theme", currentTheme === "dark");
+  themeToggleButton.textContent = currentTheme === "dark" ? "Light Mode" : "Dark Mode";
+}
 
 async function api(path, options = {}) {
   const response = await fetch(path, {
@@ -620,6 +628,7 @@ function renderEmptyStats(message) {
   statsSummary.innerHTML = `<div class="stat-card"><span>Status</span><strong>${escapeHtml(message)}</strong></div>`;
   statsCourseBody.innerHTML = `<tr><td colspan="6">${escapeHtml(message)}</td></tr>`;
   statsUserBody.innerHTML = `<tr><td colspan="6">${escapeHtml(message)}</td></tr>`;
+  statsFeedbackBody.innerHTML = `<tr><td colspan="6">${escapeHtml(message)}</td></tr>`;
 }
 
 function renderStats(stats) {
@@ -664,6 +673,23 @@ function renderStats(stats) {
         )
         .join("")
     : `<tr><td colspan="6">No player progress has been saved yet.</td></tr>`;
+
+  statsFeedbackBody.innerHTML = stats.feedback?.length
+    ? stats.feedback
+        .map(
+          (item) => `
+            <tr>
+              <td>${escapeHtml(item.username)}</td>
+              <td>${escapeHtml(item.courseTitle)}</td>
+              <td>${escapeHtml(item.service)}</td>
+              <td>${escapeHtml(item.rating ? `${item.rating} / 5` : "No rating")}</td>
+              <td>${escapeHtml(item.comment || "No comment")}</td>
+              <td>${escapeHtml(item.submittedAt || "Unknown")}</td>
+            </tr>
+          `,
+        )
+        .join("")
+    : `<tr><td colspan="6">No training feedback has been submitted yet.</td></tr>`;
 }
 
 async function loadStats() {
@@ -1078,6 +1104,7 @@ function render() {
     currentView = "home";
   }
   document.body.classList.toggle("admin-mode", adminMode);
+  applyTheme();
   renderCourseList();
   renderAccount();
   landingPanel.hidden = adminMode || currentView !== "home";
@@ -1282,6 +1309,12 @@ sidebarAnalyticsButton.addEventListener("click", () => {
 refreshStatsButton.addEventListener("click", () => {
   statsLoaded = false;
   loadStats();
+});
+
+themeToggleButton.addEventListener("click", () => {
+  currentTheme = currentTheme === "dark" ? "light" : "dark";
+  localStorage.setItem("five999TrainingTheme", currentTheme);
+  applyTheme();
 });
 
 downloadCertificateButton.addEventListener("click", () => {

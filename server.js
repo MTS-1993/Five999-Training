@@ -386,6 +386,7 @@ async function getAllProgressRows() {
 
 function buildStats(courses, progressRows) {
   const courseMap = new Map(courses.map((course) => [course.id, course]));
+  const feedback = [];
   const courseStats = courses.map((course) => ({
     id: course.id,
     title: course.title,
@@ -426,6 +427,18 @@ function buildStats(courses, progressRows) {
       if (typeof progress.quizScore === "number") {
         scores.push(progress.quizScore);
       }
+      if (progress.feedback && (progress.feedback.rating || progress.feedback.comment)) {
+        feedback.push({
+          discordId: row.discordId,
+          username: row.username,
+          courseId,
+          courseTitle: course.title,
+          service: course.service,
+          rating: progress.feedback.rating || "",
+          comment: progress.feedback.comment || "",
+          submittedAt: progress.feedback.submittedAt || row.updatedAt || null,
+        });
+      }
     }
 
     return {
@@ -464,6 +477,7 @@ function buildStats(courses, progressRows) {
     },
     courses: courseStats,
     users,
+    feedback: feedback.sort((a, b) => String(b.submittedAt || "").localeCompare(String(a.submittedAt || ""))),
   };
 }
 
