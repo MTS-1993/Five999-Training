@@ -392,6 +392,17 @@ async function fmsRequest(route, options = {}) {
   return data;
 }
 
+async function getOutboundIp() {
+  try {
+    const response = await fetch("https://api.ipify.org?format=json");
+    if (!response.ok) return "";
+    const data = await response.json();
+    return data.ip || "";
+  } catch {
+    return "";
+  }
+}
+
 async function addFmsTrainingGroups(user, course, courseProgress) {
   const groupIds = parseNumericIds(course.fmsTrainingGroupIds);
   if (!groupIds.length || !FMS_API_BASE_URL || !FMS_API_TOKEN) return null;
@@ -692,6 +703,9 @@ app.get("/api/stats", requireUser, async (req, res, next) => {
 });
 
 app.get("/api/fms/test", requireUser, async (req, res) => {
+  const outboundIp = await getOutboundIp();
+  const testPath = `/training/groups/user?discordid=${encodeURIComponent(req.user.id)}`;
+  const testUrl = fmsApiUrl(testPath);
   try {
     const access = await getAccess(req.user);
     if (!access.command) {
@@ -704,16 +718,21 @@ app.get("/api/fms/test", requireUser, async (req, res) => {
       return;
     }
 
-    const data = await fmsRequest(`/training/groups/user?discordid=${encodeURIComponent(req.user.id)}`);
+    const data = await fmsRequest(testPath);
     res.json({
       ok: true,
       message: "FMS API connection works. This Discord account was found.",
+      outboundIp,
+      testUrl,
       groups: data?.data || [],
     });
   } catch (error) {
     res.status(error.status || 500).json({
       ok: false,
       error: error.message || "FMS API test failed.",
+      status: error.status || 500,
+      outboundIp,
+      testUrl,
     });
   }
 });

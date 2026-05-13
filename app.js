@@ -130,7 +130,13 @@ async function api(path, options = {}) {
 
   if (!response.ok) {
     const payload = await response.json().catch(() => ({}));
-    throw new Error(payload.error || `Request failed with status ${response.status}`);
+    const details = [
+      payload.error || `Request failed with status ${response.status}`,
+      payload.status ? `Status: ${payload.status}` : "",
+      payload.outboundIp ? `Outbound IP: ${payload.outboundIp}` : "",
+      payload.testUrl ? `URL: ${payload.testUrl}` : "",
+    ].filter(Boolean);
+    throw new Error(details.join(" | "));
   }
 
   return response.json();
@@ -1375,7 +1381,7 @@ testFmsButton.addEventListener("click", async () => {
     const groups = result.groups?.length
       ? ` Current groups: ${result.groups.map((group) => group.name).join(", ")}.`
       : " No current groups returned.";
-    fmsTestResult.textContent = `${result.message}${groups}`;
+    fmsTestResult.textContent = `${result.message}${groups} Outbound IP: ${result.outboundIp || "unknown"}.`;
   } catch (error) {
     fmsTestResult.textContent = `FMS test failed: ${error.message}`;
   }
