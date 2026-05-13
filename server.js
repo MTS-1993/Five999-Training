@@ -234,6 +234,7 @@ function sanitizeCourses(courses) {
     title: String(course.title || "Untitled Training").slice(0, 90),
     tag: String(course.tag || "Specialist training").slice(0, 120),
     summary: String(course.summary || "").slice(0, 500),
+    published: course.published !== false,
     imageUrl: sanitizeUrl(course.imageUrl),
     resourceUrl: sanitizeUrl(course.resourceUrl),
     fmsTrainingGroupIds: parseNumericIds(course.fmsTrainingGroupIds),

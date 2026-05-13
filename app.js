@@ -34,8 +34,10 @@ let selectedManagerCourseId = "__new__";
 let adminMode = false;
 let adminView = "editor";
 let statsLoaded = false;
+let courseSearchTerm = "";
 
 const courseList = document.getElementById("courseList");
+const courseSearch = document.getElementById("courseSearch");
 const courseTitle = document.getElementById("courseTitle");
 const courseTag = document.getElementById("courseTag");
 const courseHeading = document.getElementById("courseHeading");
@@ -174,6 +176,7 @@ function normalizeCourse(course) {
     ...course,
     service: course.service || serviceSections[0],
     division: course.division || "General",
+    published: course.published !== false,
     imageUrl: course.imageUrl || "",
     resourceUrl: course.resourceUrl || "",
     fmsTrainingGroupIds: Array.isArray(course.fmsTrainingGroupIds) ? course.fmsTrainingGroupIds : [],
@@ -199,8 +202,42 @@ function removeOldExampleTrainings(items) {
   return (items || []).filter((course) => !oldExampleTrainingIds.has(course.id));
 }
 
+function courseMatchesSearch(course) {
+  const query = courseSearchTerm.trim().toLowerCase();
+  if (!query) return true;
+  return [course.service, course.division, course.title, course.tag, course.summary]
+    .join(" ")
+    .toLowerCase()
+    .includes(query);
+}
+
+function getVisibleCourses() {
+  return courses.filter((course) => (course.published !== false || canManageTrainings()) && courseMatchesSearch(course));
+}
+
+function expandSearchMatches() {
+  const query = courseSearchTerm.trim();
+  if (!query) return;
+  getVisibleCourses().forEach((course) => expandedServices.add(course.service));
+}
+
+function openFirstSearchResult() {
+  const firstCourse = getVisibleCourses()[0];
+  if (!firstCourse) return;
+  selectedCourseId = firstCourse.id;
+  selectedService = firstCourse.service;
+  expandedServices.add(firstCourse.service);
+  selectedModuleIndex = 0;
+  currentView = "training";
+  adminMode = false;
+  render();
+}
+
 function getCourse() {
-  return courses.find((course) => course.id === selectedCourseId) || null;
+  const course = courses.find((item) => item.id === selectedCourseId) || null;
+  if (!course) return null;
+  if (course.published === false && !canManageTrainings()) return null;
+  return course;
 }
 
 function getCourseProgress(courseId) {
@@ -317,6 +354,7 @@ function createBlankTraining() {
     title: "",
     tag: "",
     summary: "",
+    published: true,
     imageUrl: "",
     resourceUrl: "",
     fmsTrainingGroupIds: [],
@@ -402,6 +440,7 @@ function fillManagerForm(course) {
     managerForm.elements.tag.value = "";
     managerForm.elements.icon.value = "TR";
     managerForm.elements.summary.value = "";
+    managerForm.elements.published.checked = true;
     managerForm.elements.imageUrl.value = "";
     managerForm.elements.imageUpload.value = "";
     managerForm.elements.resourceUrl.value = "";
@@ -425,6 +464,7 @@ function fillManagerForm(course) {
   managerForm.elements.tag.value = normalized.tag || "";
   managerForm.elements.icon.value = normalized.icon || "TR";
   managerForm.elements.summary.value = normalized.summary || "";
+  managerForm.elements.published.checked = normalized.published !== false;
   managerForm.elements.imageUrl.value = normalized.imageUrl || "";
   managerForm.elements.imageUpload.value = "";
   managerForm.elements.resourceUrl.value = normalized.resourceUrl || "";
@@ -660,7 +700,7 @@ function renderManagement() {
           (course) =>
             `<option value="${escapeHtml(course.id)}" ${
               course.id === selectedManagerCourseId ? "selected" : ""
-            }>${escapeHtml(course.service)} - ${escapeHtml(course.title)}</option>`,
+            }>${course.published === false ? "[Draft] " : ""}${escapeHtml(course.service)} - ${escapeHtml(course.title)}</option>`,
         )
     )
     .join("");
@@ -765,9 +805,10 @@ async function saveCoursesToServer() {
 }
 
 function renderCourseList() {
+  const visibleCourses = getVisibleCourses();
   courseList.innerHTML = serviceSections
     .map((service) => {
-      const serviceCourses = courses.filter((course) => course.service === service);
+      const serviceCourses = visibleCourses.filter((course) => course.service === service);
       return `
         <section class="service-group">
           <button class="service-button ${
@@ -792,12 +833,13 @@ function renderCourseList() {
                             <strong>${escapeHtml(course.title)}</strong>
                             <small>${escapeHtml(course.division || course.tag)}</small>
                           </span>
+                          ${course.published === false ? `<span class="draft-badge">Draft</span>` : ""}
                           <span class="progress-badge ${state.className}">${escapeHtml(state.label)}</span>
                         </button>
                       `;
                     })
                     .join("")
-                : `<p class="empty-service">No trainings yet</p>`
+                : `<p class="empty-service">${courseSearchTerm ? "No matches" : "No trainings yet"}</p>`
             }
           </div>
         </section>
@@ -835,9 +877,10 @@ function renderProfile() {
   profilePanel.hidden = !isSignedIn() || adminMode || currentView !== "profile";
   if (profilePanel.hidden) return;
 
-  const completed = courses.filter((course) => getCourseProgress(course.id).passed).length;
-  profileSummary.textContent = `${completed} / ${courses.length} completed`;
-  profileGrid.innerHTML = courses
+  const profileCourses = courses.filter((course) => course.published !== false || canManageTrainings());
+  const completed = profileCourses.filter((course) => getCourseProgress(course.id).passed).length;
+  profileSummary.textContent = `${completed} / ${profileCourses.length} completed`;
+  profileGrid.innerHTML = profileCourses
     .map((course) => {
       const courseProgress = getCourseProgress(course.id);
       const state = getProgressState(course);
@@ -965,21 +1008,29 @@ function renderCompletion(course) {
   if (!courseProgress.passed) return;
 
   const displayName = currentUser?.globalName || currentUser?.username || "This player";
+  const scoreText = course.quizEnabled === false ? "No quiz required" : `${courseProgress.quizScore}%`;
+  const fmsText = courseProgress.fmsTrainingSync?.message || "FMS training group will update where configured.";
   certificateMessage.innerHTML = `
-    <strong>${escapeHtml(course.title)} specialist training completed.</strong><br />
-    ${escapeHtml(displayName)} has completed this course.<br />
-    ${
-      course.quizEnabled === false
-        ? "No final quiz was required for this training."
-        : `${escapeHtml(displayName)} has achieved ${courseProgress.quizScore}% on the final assessment, meeting the ${PASS_MARK}% pass requirement.`
-    }<br />
-    Completed: ${courseProgress.completedAt}<br /><br />
-    ${
-      courseProgress.fmsTrainingSync
-        ? `FMS training sync: ${escapeHtml(courseProgress.fmsTrainingSync.message)}<br /><br />`
-        : ""
-    }
-    Your FMS training group will handle any linked role allocation automatically.
+    <div class="certificate-summary">
+      <div>
+        <p class="eyebrow">Completed by</p>
+        <strong>${escapeHtml(displayName)}</strong>
+      </div>
+      <div>
+        <p class="eyebrow">Course</p>
+        <strong>${escapeHtml(course.title)}</strong>
+      </div>
+      <div>
+        <p class="eyebrow">Score</p>
+        <strong>${escapeHtml(scoreText)}</strong>
+      </div>
+      <div>
+        <p class="eyebrow">Completed</p>
+        <strong>${escapeHtml(courseProgress.completedAt)}</strong>
+      </div>
+    </div>
+    <p class="certificate-status">${escapeHtml(fmsText)}</p>
+    <p class="certificate-status">Your FMS training group will handle any linked role allocation automatically.</p>
   `;
   feedbackRating.value = courseProgress.feedback?.rating || "";
   feedbackComment.value = courseProgress.feedback?.comment || "";
@@ -1335,6 +1386,20 @@ feedbackForm.addEventListener("submit", (event) => {
   feedbackResult.textContent = "Feedback saved. Thank you.";
 });
 
+courseSearch.addEventListener("input", () => {
+  courseSearchTerm = courseSearch.value;
+  expandSearchMatches();
+  renderCourseList();
+});
+
+courseSearch.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter") return;
+  event.preventDefault();
+  courseSearchTerm = courseSearch.value;
+  expandSearchMatches();
+  openFirstSearchResult();
+});
+
 managerCourseSelect.addEventListener("change", () => {
   selectedManagerCourseId = managerCourseSelect.value;
   managerResult.textContent = "";
@@ -1437,6 +1502,7 @@ managerForm.addEventListener("submit", async (event) => {
       tag: managerForm.elements.tag.value,
       icon: managerForm.elements.icon.value,
       summary: managerForm.elements.summary.value,
+      published: managerForm.elements.published.checked,
       imageUrl: uploadedTrainingImage || managerForm.elements.imageUrl.value,
       resourceUrl: managerForm.elements.resourceUrl.value,
       fmsTrainingGroupIds: parseNumberList(managerForm.elements.fmsTrainingGroupIds.value),

@@ -19,6 +19,7 @@ A Render-hosted training dashboard for Five999 players to sign in with Discord, 
 - Command-only training add/edit tools
 - Leadership-only training and division delete/admin tools
 - Separate role-locked Create/Edit/Delete area, no JSON editing required
+- Draft/published toggle so Command can prepare trainings before players see them
 - Role-locked admin analytics for Command and Leadership teams
 - Training feedback table in Command analytics
 - Optional image URLs and resource URLs for trainings and modules
@@ -29,11 +30,13 @@ A Render-hosted training dashboard for Five999 players to sign in with Discord, 
 - 80% pass requirement
 - Saved progress and completed trainings by Discord account
 - Separate player training profile with progress badges for each course
+- Sidebar search for finding trainings quickly
 - Home screen dark/light mode toggle
 - Completion message confirming the FMS training group update
 - Downloadable completion certificate with player name, course, date, and Five999 logo
 - Downloadable PDF certificate as well as PNG certificate
 - Certificate preview after completing a course
+- Cleaner certificate completion summary with player name, score, date, and FMS status
 - Player feedback form after completing a course
 - Optional Discord DM notification when a player completes a training
 - Optional Albo FMS training group award when a player passes a course
