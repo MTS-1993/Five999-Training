@@ -4,7 +4,13 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Five999 Specialist Training</title>
-    <link rel="stylesheet" href="styles.css?v=20260513-5" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Inter:wght@500;600;700;800;900&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css?v=20260513-6" />
   </head>
   <body>
     <div class="app-shell">
@@ -12,10 +18,12 @@
         <div class="brand">
           <img
             class="brand-logo"
-            src="assets/five999-training-logo.png?v=20260513-5"
+            src="assets/five999-training-logo.png?v=20260513-6"
             alt="Five999 Training"
           />
         </div>
+
+        <div class="sidebar-section-label">Service Training Areas</div>
 
         <div class="sidebar-search">
           <label class="sr-only" for="courseSearch">Search trainings</label>
@@ -48,6 +56,7 @@
           <div>
             <p class="eyebrow">Specialist subdivisions</p>
             <h1 id="courseTitle">Training Dashboard</h1>
+            <p class="topbar-subtitle">Five999 training, certification, and command oversight.</p>
           </div>
           <div class="account-actions" id="accountActions"></div>
         </header>
@@ -217,6 +226,7 @@
             <div>
               <p class="eyebrow">Command tools</p>
               <h2>Training Management</h2>
+              <p class="section-subtitle">Create, publish, update, and review specialist training content.</p>
             </div>
             <span class="score-pill" id="managementAccess">Role locked</span>
           </div>
@@ -226,6 +236,7 @@
               <div>
                 <p class="eyebrow">Admin analytics</p>
                 <h2>Training Statistics</h2>
+                <p class="section-subtitle">Completion rates, pass performance, and player feedback.</p>
               </div>
               <button class="ghost-button" id="refreshStatsButton" type="button">Refresh Stats</button>
             </div>
@@ -281,7 +292,8 @@
           </section>
 
           <div class="manager-layout" id="editorPanel">
-            <div>
+            <div class="manager-side-panel">
+              <p class="eyebrow">Editor Control</p>
               <button class="primary-button" id="newTrainingButton" type="button">Create New Training</button>
               <label class="field-label" for="managerCourseSelect">Edit existing training</label>
               <select id="managerCourseSelect"></select>
@@ -393,6 +405,6 @@
       </main>
     </div>
 
-    <script src="app.js?v=20260513-5"></script>
+    <script src="app.js?v=20260513-6"></script>
   </body>
 </html>

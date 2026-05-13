@@ -5,6 +5,7 @@ A Render-hosted training dashboard for Five999 players to sign in with Discord, 
 ## Features
 
 - Specialist subdivision training modules
+- Refreshed dashboard layout with clearer service, Command, and analytics areas
 - Intro landing page explaining how players navigate trainings and save completion proof
 - Start Training button before modules and quizzes unlock
 - Empty by default, with sidebar sections for:

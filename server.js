@@ -652,7 +652,12 @@ app.get("/api/me", async (req, res, next) => {
 
 app.get("/api/courses", async (req, res, next) => {
   try {
-    res.json({ courses: await getCourses() });
+    const user = verifySession(parseCookies(req)[SESSION_COOKIE]);
+    const access = user ? await getAccess(user) : null;
+    const courses = await getCourses();
+    res.json({
+      courses: access?.command ? courses : courses.filter((course) => course.published !== false),
+    });
   } catch (error) {
     next(error);
   }
