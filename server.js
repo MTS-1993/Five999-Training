@@ -691,6 +691,33 @@ app.get("/api/stats", requireUser, async (req, res, next) => {
   }
 });
 
+app.get("/api/fms/test", requireUser, async (req, res) => {
+  try {
+    const access = await getAccess(req.user);
+    if (!access.command) {
+      res.status(403).json({ error: "Command or Leadership role required." });
+      return;
+    }
+
+    if (!FMS_API_BASE_URL || !FMS_API_TOKEN) {
+      res.status(400).json({ error: "FMS_API_BASE_URL and FMS_API_TOKEN must both be set in Render." });
+      return;
+    }
+
+    const data = await fmsRequest(`/training/groups/user?discordid=${encodeURIComponent(req.user.id)}`);
+    res.json({
+      ok: true,
+      message: "FMS API connection works. This Discord account was found.",
+      groups: data?.data || [],
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({
+      ok: false,
+      error: error.message || "FMS API test failed.",
+    });
+  }
+});
+
 app.get("/api/progress", requireUser, async (req, res, next) => {
   try {
     res.json({ progress: await getProgress(req.user) });

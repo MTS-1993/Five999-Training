@@ -77,6 +77,8 @@ const managerCourseSelect = document.getElementById("managerCourseSelect");
 const managerService = document.getElementById("managerService");
 const newTrainingButton = document.getElementById("newTrainingButton");
 const deleteTrainingButton = document.getElementById("deleteTrainingButton");
+const testFmsButton = document.getElementById("testFmsButton");
+const fmsTestResult = document.getElementById("fmsTestResult");
 const addModuleButton = document.getElementById("addModuleButton");
 const addQuestionButton = document.getElementById("addQuestionButton");
 const moduleBuilder = document.getElementById("moduleBuilder");
@@ -1363,6 +1365,20 @@ function toggleTheme() {
 refreshStatsButton.addEventListener("click", () => {
   statsLoaded = false;
   loadStats();
+});
+
+testFmsButton.addEventListener("click", async () => {
+  if (!canManageTrainings()) return;
+  fmsTestResult.textContent = "Testing FMS connection...";
+  try {
+    const result = await api("/api/fms/test");
+    const groups = result.groups?.length
+      ? ` Current groups: ${result.groups.map((group) => group.name).join(", ")}.`
+      : " No current groups returned.";
+    fmsTestResult.textContent = `${result.message}${groups}`;
+  } catch (error) {
+    fmsTestResult.textContent = `FMS test failed: ${error.message}`;
+  }
 });
 
 downloadCertificateButton.addEventListener("click", () => {

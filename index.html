@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Five999 Specialist Training</title>
-    <link rel="stylesheet" href="styles.css?v=20260513-1" />
+    <link rel="stylesheet" href="styles.css?v=20260513-2" />
   </head>
   <body>
     <div class="app-shell">
@@ -12,7 +12,7 @@
         <div class="brand">
           <img
             class="brand-logo"
-            src="assets/five999-training-logo.png?v=20260513-1"
+            src="assets/five999-training-logo.png?v=20260513-2"
             alt="Five999 Training"
           />
         </div>
@@ -352,6 +352,10 @@
                 <input id="managerFmsAutoRemoveOnExpiry" name="fmsAutoRemoveOnExpiry" type="checkbox" checked />
                 <span>Automatically remove FMS group on expiry</span>
               </label>
+              <div class="manager-actions">
+                <button class="ghost-button" id="testFmsButton" type="button">Test FMS Connection</button>
+                <p class="result-text" id="fmsTestResult"></p>
+              </div>
 
               <label class="toggle-row">
                 <input id="managerQuizEnabled" name="quizEnabled" type="checkbox" checked />
@@ -386,6 +390,6 @@
       </main>
     </div>
 
-    <script src="app.js?v=20260513-1"></script>
+    <script src="app.js?v=20260513-2"></script>
   </body>
 </html>
