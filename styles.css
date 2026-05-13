@@ -1951,6 +1951,40 @@ textarea {
   border-color: #b85660;
 }
 
+.dark-theme .analytics-table {
+  border-color: #3a5c74;
+  background: #102f46;
+  color: #f6f9fb;
+}
+
+.dark-theme .analytics-table th {
+  border-bottom-color: #4a6d86;
+  background: #173b56;
+  color: #f6f9fb;
+}
+
+.dark-theme .analytics-table td {
+  border-bottom-color: #2d4b61;
+  color: #d7e3eb;
+}
+
+.dark-theme .analytics-table tbody tr:nth-child(even) td {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.dark-theme .analytics-table-wrap h3 {
+  color: #f6f9fb;
+}
+
+.dark-theme .score-pill {
+  background: #0f403a;
+  color: #7ee4cb;
+}
+
+.dark-theme .stat-card span {
+  color: #c4d1da;
+}
+
 @media (max-width: 980px) {
   .app-shell {
     grid-template-columns: 1fr;
