@@ -174,6 +174,10 @@ function normalizeCourse(course) {
     division: course.division || "General",
     imageUrl: course.imageUrl || "",
     resourceUrl: course.resourceUrl || "",
+    fmsTrainingGroupIds: Array.isArray(course.fmsTrainingGroupIds) ? course.fmsTrainingGroupIds : [],
+    fmsTrainingNote: course.fmsTrainingNote || "",
+    fmsTrainingExpiryDate: course.fmsTrainingExpiryDate || "",
+    fmsAutoRemoveOnExpiry: course.fmsAutoRemoveOnExpiry !== false,
     quizEnabled: course.quizEnabled !== false,
     modules: (course.modules || []).map((module) => ({
       ...module,
@@ -219,13 +223,17 @@ function getProgressState(course) {
   return { label: "Not started", className: "idle" };
 }
 
-function saveProgress() {
-  if (!isSignedIn()) return;
-  api("/api/progress", {
+async function saveProgress() {
+  if (!isSignedIn()) return null;
+  return api("/api/progress", {
     method: "PUT",
     body: JSON.stringify({ progress }),
+  }).then((result) => {
+    if (result.progress) progress = result.progress;
+    return result;
   }).catch(() => {
     localStorage.setItem("five999TrainingProgressBackup", JSON.stringify(progress));
+    return null;
   });
 }
 
@@ -309,6 +317,10 @@ function createBlankTraining() {
     summary: "",
     imageUrl: "",
     resourceUrl: "",
+    fmsTrainingGroupIds: [],
+    fmsTrainingNote: "",
+    fmsTrainingExpiryDate: "",
+    fmsAutoRemoveOnExpiry: true,
     quizEnabled: true,
     modules: [
       {
@@ -391,6 +403,10 @@ function fillManagerForm(course) {
     managerForm.elements.imageUrl.value = "";
     managerForm.elements.imageUpload.value = "";
     managerForm.elements.resourceUrl.value = "";
+    managerForm.elements.fmsTrainingGroupIds.value = "";
+    managerForm.elements.fmsTrainingNote.value = "";
+    managerForm.elements.fmsTrainingExpiryDate.value = "";
+    managerForm.elements.fmsAutoRemoveOnExpiry.checked = true;
     managerForm.elements.quizEnabled.checked = true;
     renderModuleBuilder([]);
     renderQuizBuilder([]);
@@ -410,6 +426,10 @@ function fillManagerForm(course) {
   managerForm.elements.imageUrl.value = normalized.imageUrl || "";
   managerForm.elements.imageUpload.value = "";
   managerForm.elements.resourceUrl.value = normalized.resourceUrl || "";
+  managerForm.elements.fmsTrainingGroupIds.value = (normalized.fmsTrainingGroupIds || []).join(", ");
+  managerForm.elements.fmsTrainingNote.value = normalized.fmsTrainingNote || "";
+  managerForm.elements.fmsTrainingExpiryDate.value = normalized.fmsTrainingExpiryDate || "";
+  managerForm.elements.fmsAutoRemoveOnExpiry.checked = normalized.fmsAutoRemoveOnExpiry !== false;
   managerForm.elements.quizEnabled.checked = normalized.quizEnabled !== false;
   renderModuleBuilder(normalized.modules);
   renderQuizBuilder(normalized.quiz);
@@ -437,6 +457,13 @@ function collectQuizBuilder() {
       correct: mappedCorrectIndex >= 0 ? mappedCorrectIndex : 0,
     };
   });
+}
+
+function parseNumberList(value) {
+  return String(value || "")
+    .split(",")
+    .map((item) => Number(item.trim()))
+    .filter((item) => Number.isInteger(item) && item > 0);
 }
 
 function readImageFile(file) {
@@ -945,6 +972,11 @@ function renderCompletion(course) {
         : `${escapeHtml(displayName)} has achieved ${courseProgress.quizScore}% on the final assessment, meeting the ${PASS_MARK}% pass requirement.`
     }<br />
     Completed: ${courseProgress.completedAt}<br /><br />
+    ${
+      courseProgress.fmsTrainingSync
+        ? `FMS role sync: ${escapeHtml(courseProgress.fmsTrainingSync.message)}<br /><br />`
+        : ""
+    }
     Please open a support ticket in Discord to obtain the role via FMS.
   `;
   feedbackRating.value = courseProgress.feedback?.rating || "";
@@ -1217,7 +1249,7 @@ startTrainingButton.addEventListener("click", () => {
   render();
 });
 
-markRead.addEventListener("click", () => {
+markRead.addEventListener("click", async () => {
   if (!isSignedIn()) return;
   const courseProgress = getCourseProgress(selectedCourseId);
   if (!courseProgress.readModules.includes(selectedModuleIndex)) {
@@ -1232,7 +1264,7 @@ markRead.addEventListener("click", () => {
         timeStyle: "short",
       });
     }
-    saveProgress();
+    await saveProgress();
   }
 
   const course = getCourse();
@@ -1242,7 +1274,7 @@ markRead.addEventListener("click", () => {
   render();
 });
 
-quizForm.addEventListener("submit", (event) => {
+quizForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!isSignedIn()) return;
   const course = getCourse();
@@ -1267,7 +1299,7 @@ quizForm.addEventListener("submit", (event) => {
     });
   }
 
-  saveProgress();
+  await saveProgress();
   render();
 
   const resultText = document.getElementById("resultText");
@@ -1405,6 +1437,10 @@ managerForm.addEventListener("submit", async (event) => {
       summary: managerForm.elements.summary.value,
       imageUrl: uploadedTrainingImage || managerForm.elements.imageUrl.value,
       resourceUrl: managerForm.elements.resourceUrl.value,
+      fmsTrainingGroupIds: parseNumberList(managerForm.elements.fmsTrainingGroupIds.value),
+      fmsTrainingNote: managerForm.elements.fmsTrainingNote.value,
+      fmsTrainingExpiryDate: managerForm.elements.fmsTrainingExpiryDate.value,
+      fmsAutoRemoveOnExpiry: managerForm.elements.fmsAutoRemoveOnExpiry.checked,
       quizEnabled,
       modules,
       quiz,

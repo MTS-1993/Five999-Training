@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Five999 Specialist Training</title>
-    <link rel="stylesheet" href="styles.css?v=20260512-11" />
+    <link rel="stylesheet" href="styles.css?v=20260513-1" />
   </head>
   <body>
     <div class="app-shell">
@@ -12,7 +12,7 @@
         <div class="brand">
           <img
             class="brand-logo"
-            src="assets/five999-training-logo.png?v=20260512-11"
+            src="assets/five999-training-logo.png?v=20260513-1"
             alt="Five999 Training"
           />
         </div>
@@ -324,6 +324,35 @@
               <label class="field-label" for="managerResourceUrl">Resource URL</label>
               <input id="managerResourceUrl" name="resourceUrl" placeholder="https://example.com/policy-or-document" />
 
+              <div class="builder-heading">
+                <div>
+                  <p class="eyebrow">FMS automation</p>
+                  <h3>Training Group Award</h3>
+                </div>
+              </div>
+
+              <label class="field-label" for="managerFmsTrainingGroupIds">FMS training group IDs</label>
+              <input
+                id="managerFmsTrainingGroupIds"
+                name="fmsTrainingGroupIds"
+                placeholder="Example: 1, 2"
+              />
+
+              <label class="field-label" for="managerFmsTrainingNote">FMS training note</label>
+              <input
+                id="managerFmsTrainingNote"
+                name="fmsTrainingNote"
+                placeholder="Passed this Five999 specialist training"
+              />
+
+              <label class="field-label" for="managerFmsTrainingExpiryDate">FMS expiry date</label>
+              <input id="managerFmsTrainingExpiryDate" name="fmsTrainingExpiryDate" type="date" />
+
+              <label class="toggle-row">
+                <input id="managerFmsAutoRemoveOnExpiry" name="fmsAutoRemoveOnExpiry" type="checkbox" checked />
+                <span>Automatically remove FMS group on expiry</span>
+              </label>
+
               <label class="toggle-row">
                 <input id="managerQuizEnabled" name="quizEnabled" type="checkbox" checked />
                 <span>Require quiz for this training</span>
@@ -357,6 +386,6 @@
       </main>
     </div>
 
-    <script src="app.js?v=20260512-11"></script>
+    <script src="app.js?v=20260513-1"></script>
   </body>
 </html>

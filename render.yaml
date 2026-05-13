@@ -26,5 +26,11 @@ services:
         sync: false
       - key: LEADERSHIP_ROLE_IDS
         sync: false
+      - key: DISCORD_DM_NOTIFICATIONS
+        sync: false
+      - key: FMS_API_BASE_URL
+        sync: false
+      - key: FMS_API_TOKEN
+        sync: false
       - key: DATABASE_URL
         sync: false

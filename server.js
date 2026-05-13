@@ -22,6 +22,8 @@ const {
   COMMAND_ROLE_IDS = "",
   LEADERSHIP_ROLE_IDS = "",
   DISCORD_DM_NOTIFICATIONS = "false",
+  FMS_API_BASE_URL = "",
+  FMS_API_TOKEN = "",
   DATABASE_URL,
   SESSION_SECRET = "replace-this-session-secret-before-production",
 } = process.env;
@@ -176,6 +178,24 @@ function sanitizeUrl(value) {
   }
 }
 
+function parseNumericIds(value) {
+  return (Array.isArray(value) ? value : String(value || "").split(","))
+    .map((item) => Number(item))
+    .filter((item) => Number.isInteger(item) && item > 0);
+}
+
+function sanitizeExpiryDate(value) {
+  const date = String(value || "").trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : "";
+}
+
+function fmsApiUrl(route) {
+  const base = FMS_API_BASE_URL.trim().replace(/\/+$/, "");
+  if (!base) return "";
+  const frameworkBase = base.endsWith("/frameworkapi") ? base : `${base}/frameworkapi`;
+  return `${frameworkBase}${route}`;
+}
+
 async function getDiscordRoleIds(discordId) {
   if (!DISCORD_GUILD_ID || !DISCORD_BOT_TOKEN) return [];
 
@@ -217,6 +237,10 @@ function sanitizeCourses(courses) {
     summary: String(course.summary || "").slice(0, 500),
     imageUrl: sanitizeUrl(course.imageUrl),
     resourceUrl: sanitizeUrl(course.resourceUrl),
+    fmsTrainingGroupIds: parseNumericIds(course.fmsTrainingGroupIds),
+    fmsTrainingNote: String(course.fmsTrainingNote || "").slice(0, 500),
+    fmsTrainingExpiryDate: sanitizeExpiryDate(course.fmsTrainingExpiryDate),
+    fmsAutoRemoveOnExpiry: course.fmsAutoRemoveOnExpiry !== false,
     quizEnabled: course.quizEnabled !== false,
     modules: Array.isArray(course.modules)
       ? course.modules.map((module) => ({
@@ -336,6 +360,101 @@ async function sendDiscordDm(discordId, message) {
     },
     body: JSON.stringify({ content: message.slice(0, 1900) }),
   });
+}
+
+async function fmsRequest(route, options = {}) {
+  const url = fmsApiUrl(route);
+  if (!url || !FMS_API_TOKEN) return null;
+
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      "api-token": FMS_API_TOKEN,
+      "Content-Type": "application/json",
+      ...(options.headers || {}),
+    },
+  });
+
+  const text = await response.text();
+  let data = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = text;
+  }
+
+  if (!response.ok) {
+    const error = new Error(typeof data === "string" ? data : `FMS request failed with status ${response.status}`);
+    error.status = response.status;
+    throw error;
+  }
+
+  return data;
+}
+
+async function addFmsTrainingGroups(user, course, courseProgress) {
+  const groupIds = parseNumericIds(course.fmsTrainingGroupIds);
+  if (!groupIds.length || !FMS_API_BASE_URL || !FMS_API_TOKEN) return null;
+
+  const lookup = await fmsRequest(`/training/groups/user?discordid=${encodeURIComponent(user.id)}`);
+  const existingIds = new Set((lookup?.data || []).map((group) => Number(group.id)));
+  const missingIds = groupIds.filter((groupId) => !existingIds.has(groupId));
+
+  if (!missingIds.length) {
+    return {
+      ok: true,
+      skipped: true,
+      message: "FMS user already has the configured training group(s).",
+      groupIds,
+      syncedAt: new Date().toISOString(),
+    };
+  }
+
+  const body = {
+    discordid: user.id,
+    groupids: missingIds,
+    note:
+      course.fmsTrainingNote ||
+      `Automatically awarded after passing ${course.title} through Five999 Training Hub.`,
+    autoremoveonexpiry: course.fmsAutoRemoveOnExpiry !== false,
+  };
+  if (course.fmsTrainingExpiryDate) body.expirydate = course.fmsTrainingExpiryDate;
+
+  await fmsRequest("/training/groups/user/add", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+
+  return {
+    ok: true,
+    skipped: false,
+    message: "FMS training group(s) added.",
+    groupIds: missingIds,
+    syncedAt: new Date().toISOString(),
+  };
+}
+
+async function syncNewFmsCompletions(user, oldProgress, nextProgress, courses) {
+  const courseMap = new Map(courses.map((course) => [course.id, course]));
+  const newlyCompleted = Object.entries(nextProgress || {}).filter(([courseId, item]) => {
+    return item?.passed && !oldProgress?.[courseId]?.passed && courseMap.has(courseId);
+  });
+
+  for (const [courseId, courseProgress] of newlyCompleted) {
+    const course = courseMap.get(courseId);
+    try {
+      const result = await addFmsTrainingGroups(user, course, courseProgress);
+      if (result) {
+        courseProgress.fmsTrainingSync = result;
+      }
+    } catch (error) {
+      courseProgress.fmsTrainingSync = {
+        ok: false,
+        message: error.message || "FMS training group sync failed.",
+        syncedAt: new Date().toISOString(),
+      };
+    }
+  }
 }
 
 async function notifyNewCompletions(user, oldProgress, nextProgress, courses) {
@@ -584,9 +703,11 @@ app.put("/api/progress", requireUser, async (req, res, next) => {
   try {
     const oldProgress = await getProgress(req.user);
     const nextProgress = req.body.progress || {};
+    const courses = await getCourses();
+    await syncNewFmsCompletions(req.user, oldProgress, nextProgress, courses);
     await saveProgress(req.user, nextProgress);
-    notifyNewCompletions(req.user, oldProgress, nextProgress, await getCourses()).catch(console.error);
-    res.json({ ok: true });
+    notifyNewCompletions(req.user, oldProgress, nextProgress, courses).catch(console.error);
+    res.json({ ok: true, progress: nextProgress });
   } catch (error) {
     next(error);
   }

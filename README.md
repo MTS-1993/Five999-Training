@@ -36,6 +36,7 @@ A Render-hosted training dashboard for Five999 players to sign in with Discord, 
 - Certificate preview after completing a course
 - Player feedback form after completing a course
 - Optional Discord DM notification when a player completes a training
+- Optional Albo FMS training group award when a player passes a course
 - Discord support ticket button for role requests through FMS
 - Sidebar copyright: Five RP Group 2026
 - Mobile-friendly Command training management layout
@@ -54,6 +55,8 @@ Set these in Render:
 - `COMMAND_ROLE_IDS`
 - `LEADERSHIP_ROLE_IDS`
 - `DISCORD_DM_NOTIFICATIONS`
+- `FMS_API_BASE_URL`
+- `FMS_API_TOKEN`
 - `SESSION_SECRET`
 - `DATABASE_URL`
 
@@ -64,6 +67,8 @@ Set these in Render:
 For local testing without `DATABASE_URL`, progress is saved to `data/progress.json`.
 
 Set `DISCORD_DM_NOTIFICATIONS=true` if you want the bot to DM players when they complete a training. This requires `DISCORD_BOT_TOKEN` to be set, and some players may need to allow DMs from server members in Discord.
+
+Set `FMS_API_BASE_URL` to your FMS framework API base, for example `https://yoururl.forcemanagementsystem.com/frameworkapi`, and set `FMS_API_TOKEN` to your FMS website token. Your Render outbound IP must be whitelisted in TASE under the FMS Framework API settings. Each training can then be configured with one or more FMS training group IDs in the Command training editor.
 
 ## Discord OAuth2 Redirect
 
