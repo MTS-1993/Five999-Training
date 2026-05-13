@@ -26,11 +26,13 @@ A Render-hosted training dashboard for Five999 players to sign in with Discord, 
 - Optional image URLs and resource URLs for trainings and modules
 - Uploaded images for trainings and modules, stored with the training record
 - Quiz requirement can be toggled on or off per training
+- Optional in-game practical stage after theory, with Command practical pass/fail approval
 - Quiz questions can use two or more answers, so yes/no questions are supported
 - Quiz locked until all modules are marked read
 - 80% pass requirement
 - Saved progress and completed trainings by Discord account
 - Separate player training profile with progress badges for each course
+- Player certificates library with PNG/PDF downloads for completed trainings
 - Sidebar search for finding trainings quickly
 - Home screen dark/light mode toggle
 - Completion message confirming the FMS training group update

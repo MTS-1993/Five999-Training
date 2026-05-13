@@ -10,7 +10,7 @@
       href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Inter:wght@500;600;700;800;900&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css?v=20260513-8" />
+    <link rel="stylesheet" href="styles.css?v=20260513-10" />
   </head>
   <body>
     <div class="app-shell">
@@ -18,7 +18,7 @@
         <div class="brand">
           <img
             class="brand-logo"
-            src="assets/five999-training-logo.png?v=20260513-8"
+            src="assets/five999-training-logo.png?v=20260513-10"
             alt="Five999 Training"
           />
         </div>
@@ -157,6 +157,15 @@
             <span class="score-pill" id="profileSummary">0 completed</span>
           </div>
           <div class="profile-grid" id="profileGrid"></div>
+          <div class="certificate-library">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Certificates Library</p>
+                <h3>Completed Training Certificates</h3>
+              </div>
+            </div>
+            <div class="certificate-library-list" id="certificateLibrary"></div>
+          </div>
         </section>
 
         <section class="content-grid training-area" id="trainingContent">
@@ -274,6 +283,22 @@
               </table>
             </div>
             <div class="analytics-table-wrap">
+              <h3>Practical Assessments</h3>
+              <table class="analytics-table">
+                <thead>
+                  <tr>
+                    <th>User</th>
+                    <th>Training</th>
+                    <th>Service</th>
+                    <th>Status</th>
+                    <th>Theory Passed</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="statsPracticalBody"></tbody>
+              </table>
+            </div>
+            <div class="analytics-table-wrap">
               <h3>Training Feedback</h3>
               <table class="analytics-table">
                 <thead>
@@ -376,6 +401,10 @@
                 <input id="managerQuizEnabled" name="quizEnabled" type="checkbox" checked />
                 <span>Require quiz for this training</span>
               </label>
+              <label class="toggle-row">
+                <input id="managerPracticalRequired" name="practicalRequired" type="checkbox" />
+                <span>Require in-game practical after theory</span>
+              </label>
 
               <div class="builder-heading">
                 <div>
@@ -405,6 +434,6 @@
       </main>
     </div>
 
-    <script src="app.js?v=20260513-8"></script>
+    <script src="app.js?v=20260513-10"></script>
   </body>
 </html>

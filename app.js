@@ -69,6 +69,7 @@ const landingPanel = document.getElementById("landingPanel");
 const profilePanel = document.getElementById("profilePanel");
 const profileSummary = document.getElementById("profileSummary");
 const profileGrid = document.getElementById("profileGrid");
+const certificateLibrary = document.getElementById("certificateLibrary");
 const accountActions = document.getElementById("accountActions");
 const authPanel = document.getElementById("authPanel");
 const managementPanel = document.getElementById("managementPanel");
@@ -96,6 +97,7 @@ const refreshStatsButton = document.getElementById("refreshStatsButton");
 const statsSummary = document.getElementById("statsSummary");
 const statsCourseBody = document.getElementById("statsCourseBody");
 const statsUserBody = document.getElementById("statsUserBody");
+const statsPracticalBody = document.getElementById("statsPracticalBody");
 const statsFeedbackBody = document.getElementById("statsFeedbackBody");
 
 function applyTheme() {
@@ -184,6 +186,7 @@ function normalizeCourse(course) {
     fmsTrainingExpiryDate: course.fmsTrainingExpiryDate || "",
     fmsAutoRemoveOnExpiry: course.fmsAutoRemoveOnExpiry !== false,
     quizEnabled: course.quizEnabled !== false,
+    practicalRequired: course.practicalRequired === true,
     modules: (course.modules || []).map((module) => ({
       ...module,
       content: module.content || (Array.isArray(module.body) ? module.body.join("\n") : ""),
@@ -257,9 +260,30 @@ function getCourseProgress(courseId) {
 function getProgressState(course) {
   const courseProgress = getCourseProgress(course.id);
   if (courseProgress.passed) return { label: "Completed", className: "complete" };
+  if (course.practicalRequired && courseProgress.theoryPassed) {
+    return { label: "Practical Required", className: "progress" };
+  }
   if (courseProgress.quizScore !== null) return { label: "Failed", className: "failed" };
   if (courseProgress.started || (courseProgress.readModules || []).length > 0) return { label: "In progress", className: "progress" };
   return { label: "Not started", className: "idle" };
+}
+
+function markTheoryPassed(course, courseProgress, score = null) {
+  courseProgress.theoryPassed = true;
+  courseProgress.theoryPassedAt = new Date().toLocaleString("en-GB", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+
+  if (course.practicalRequired) {
+    courseProgress.practicalStatus = "pending";
+    courseProgress.passed = false;
+    courseProgress.completedAt = null;
+    return;
+  }
+
+  courseProgress.passed = true;
+  courseProgress.completedAt = courseProgress.theoryPassedAt;
 }
 
 async function saveProgress() {
@@ -362,6 +386,7 @@ function createBlankTraining() {
     fmsTrainingExpiryDate: "",
     fmsAutoRemoveOnExpiry: true,
     quizEnabled: true,
+    practicalRequired: false,
     modules: [
       {
         title: "",
@@ -449,6 +474,7 @@ function fillManagerForm(course) {
     managerForm.elements.fmsTrainingExpiryDate.value = "";
     managerForm.elements.fmsAutoRemoveOnExpiry.checked = true;
     managerForm.elements.quizEnabled.checked = true;
+    managerForm.elements.practicalRequired.checked = false;
     renderModuleBuilder([]);
     renderQuizBuilder([]);
     return;
@@ -473,6 +499,7 @@ function fillManagerForm(course) {
   managerForm.elements.fmsTrainingExpiryDate.value = normalized.fmsTrainingExpiryDate || "";
   managerForm.elements.fmsAutoRemoveOnExpiry.checked = normalized.fmsAutoRemoveOnExpiry !== false;
   managerForm.elements.quizEnabled.checked = normalized.quizEnabled !== false;
+  managerForm.elements.practicalRequired.checked = normalized.practicalRequired === true;
   renderModuleBuilder(normalized.modules);
   renderQuizBuilder(normalized.quiz);
 }
@@ -721,6 +748,7 @@ function renderEmptyStats(message) {
   statsSummary.innerHTML = `<div class="stat-card"><span>Status</span><strong>${escapeHtml(message)}</strong></div>`;
   statsCourseBody.innerHTML = `<tr><td colspan="6">${escapeHtml(message)}</td></tr>`;
   statsUserBody.innerHTML = `<tr><td colspan="6">${escapeHtml(message)}</td></tr>`;
+  statsPracticalBody.innerHTML = `<tr><td colspan="6">${escapeHtml(message)}</td></tr>`;
   statsFeedbackBody.innerHTML = `<tr><td colspan="6">${escapeHtml(message)}</td></tr>`;
 }
 
@@ -767,6 +795,28 @@ function renderStats(stats) {
         .join("")
     : `<tr><td colspan="6">No player progress has been saved yet.</td></tr>`;
 
+  statsPracticalBody.innerHTML = stats.practicalAssessments?.length
+    ? stats.practicalAssessments
+        .map(
+          (item) => `
+            <tr>
+              <td>${escapeHtml(item.username)}</td>
+              <td>${escapeHtml(item.courseTitle)}</td>
+              <td>${escapeHtml(item.service)}</td>
+              <td>${escapeHtml(item.status === "failed" ? "Practical failed" : "Awaiting practical")}</td>
+              <td>${escapeHtml(item.theoryPassedAt || "Unknown")}</td>
+              <td>
+                <div class="table-actions">
+                  <button class="primary-button" type="button" data-practical-pass="${escapeHtml(item.discordId)}" data-course-id="${escapeHtml(item.courseId)}">Pass</button>
+                  <button class="ghost-button danger-button" type="button" data-practical-fail="${escapeHtml(item.discordId)}" data-course-id="${escapeHtml(item.courseId)}">Fail</button>
+                </div>
+              </td>
+            </tr>
+          `,
+        )
+        .join("")
+    : `<tr><td colspan="6">No practical assessments are awaiting review.</td></tr>`;
+
   statsFeedbackBody.innerHTML = stats.feedback?.length
     ? stats.feedback
         .map(
@@ -783,6 +833,27 @@ function renderStats(stats) {
         )
         .join("")
     : `<tr><td colspan="6">No training feedback has been submitted yet.</td></tr>`;
+
+  statsPracticalBody.querySelectorAll("[data-practical-pass]").forEach((button) => {
+    button.addEventListener("click", () =>
+      updatePracticalAssessment(button.dataset.practicalPass, button.dataset.courseId, "passed"),
+    );
+  });
+  statsPracticalBody.querySelectorAll("[data-practical-fail]").forEach((button) => {
+    button.addEventListener("click", () =>
+      updatePracticalAssessment(button.dataset.practicalFail, button.dataset.courseId, "failed"),
+    );
+  });
+}
+
+async function updatePracticalAssessment(discordId, courseId, status) {
+  if (!canManageTrainings()) return;
+  const result = await api("/api/practical-assessments", {
+    method: "POST",
+    body: JSON.stringify({ discordId, courseId, status }),
+  });
+  renderStats(result.stats);
+  statsLoaded = true;
 }
 
 async function loadStats() {
@@ -886,7 +957,8 @@ function renderProfile() {
   if (profilePanel.hidden) return;
 
   const profileCourses = courses.filter((course) => course.published !== false || canManageTrainings());
-  const completed = profileCourses.filter((course) => getCourseProgress(course.id).passed).length;
+  const completedCourses = profileCourses.filter((course) => getCourseProgress(course.id).passed);
+  const completed = completedCourses.length;
   profileSummary.textContent = `${completed} / ${profileCourses.length} completed`;
   profileGrid.innerHTML = profileCourses
     .map((course) => {
@@ -917,6 +989,35 @@ function renderProfile() {
       `;
     })
     .join("");
+
+  certificateLibrary.innerHTML = completedCourses.length
+    ? completedCourses
+        .map((course) => {
+          const courseProgress = getCourseProgress(course.id);
+          return `
+            <article class="certificate-library-card">
+              <div>
+                <span class="progress-badge complete">Certificate</span>
+                <h4>${escapeHtml(course.title)}</h4>
+                <p>${escapeHtml(course.service)} / ${escapeHtml(course.division)}</p>
+                <small>Completed: ${escapeHtml(courseProgress.completedAt || "Recorded")}</small>
+              </div>
+              <div class="certificate-library-actions">
+                <button class="primary-button" type="button" data-certificate-png="${escapeHtml(course.id)}">PNG</button>
+                <button class="ghost-button" type="button" data-certificate-pdf="${escapeHtml(course.id)}">PDF</button>
+              </div>
+            </article>
+          `;
+        })
+        .join("")
+    : `<p class="empty-library">Completed certificates will appear here.</p>`;
+
+  certificateLibrary.querySelectorAll("[data-certificate-png]").forEach((button) => {
+    button.addEventListener("click", () => downloadCertificate(button.dataset.certificatePng));
+  });
+  certificateLibrary.querySelectorAll("[data-certificate-pdf]").forEach((button) => {
+    button.addEventListener("click", () => downloadPdfCertificate(button.dataset.certificatePdf));
+  });
 }
 
 function renderModules(course) {
@@ -1080,8 +1181,8 @@ function drawCenteredText(ctx, text, x, y, maxWidth, lineHeight) {
   lines.forEach((item, index) => ctx.fillText(item, x, y + index * lineHeight));
 }
 
-async function createCertificateCanvas() {
-  const course = getCourse();
+async function createCertificateCanvas(courseId = selectedCourseId) {
+  const course = courses.find((item) => item.id === courseId) || getCourse();
   if (!course) return null;
   const courseProgress = getCourseProgress(course.id);
   if (!courseProgress.passed) return null;
@@ -1141,9 +1242,9 @@ async function createCertificateCanvas() {
   return canvas;
 }
 
-async function downloadCertificate() {
-  const course = getCourse();
-  const canvas = await createCertificateCanvas();
+async function downloadCertificate(courseId = selectedCourseId) {
+  const course = courses.find((item) => item.id === courseId) || getCourse();
+  const canvas = await createCertificateCanvas(courseId);
   if (!course || !canvas) return;
 
   const link = document.createElement("a");
@@ -1190,9 +1291,9 @@ function buildCertificatePdf(jpegBinary, title) {
   return pdf;
 }
 
-async function downloadPdfCertificate() {
-  const course = getCourse();
-  const canvas = await createCertificateCanvas();
+async function downloadPdfCertificate(courseId = selectedCourseId) {
+  const course = courses.find((item) => item.id === courseId) || getCourse();
+  const canvas = await createCertificateCanvas(courseId);
   if (!course || !canvas) return;
 
   const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
@@ -1272,17 +1373,21 @@ function render() {
   moduleProgress.textContent = `${courseProgress.readModules.length} / ${course.modules.length} read`;
   quizProgress.textContent =
     courseProgress.quizScore === null
-      ? "Not attempted"
+      ? courseProgress.theoryPassed
+        ? "Theory passed"
+        : "Not attempted"
       : courseProgress.passed
         ? `Passed at ${courseProgress.quizScore}%`
+        : course.practicalRequired && courseProgress.theoryPassed
+          ? "Practical required"
         : `Last score ${courseProgress.quizScore}%`;
 
   renderHeroImage(course.imageUrl);
   courseMedia.innerHTML = renderMedia("", course.resourceUrl);
   courseStartPanel.hidden = hasStarted;
   courseStartText.textContent = course.quizEnabled === false
-    ? "This training has no final quiz. Read each module and mark it complete to unlock your confirmation and certificate."
-    : `This training includes ${course.modules.length} module${course.modules.length === 1 ? "" : "s"} and a final quiz. You need ${PASS_MARK}% to pass.`;
+    ? `This training has no final quiz. Read each module and mark it complete${course.practicalRequired ? ", then complete the in-game practical with Command." : " to unlock your confirmation and certificate."}`
+    : `This training includes ${course.modules.length} module${course.modules.length === 1 ? "" : "s"} and a final quiz. You need ${PASS_MARK}% to pass${course.practicalRequired ? ", then Command must pass your in-game practical." : "."}`;
   startTrainingButton.disabled = !isSignedIn();
   startTrainingButton.textContent = isSignedIn() ? "Start Training" : "Sign in to Start";
 
@@ -1319,11 +1424,7 @@ markRead.addEventListener("click", async () => {
     const course = getCourse();
     if (course?.quizEnabled === false && courseProgress.readModules.length === course.modules.length) {
       courseProgress.quizScore = null;
-      courseProgress.passed = true;
-      courseProgress.completedAt = new Date().toLocaleString("en-GB", {
-        dateStyle: "medium",
-        timeStyle: "short",
-      });
+      markTheoryPassed(course, courseProgress);
     }
     await saveProgress();
   }
@@ -1351,13 +1452,9 @@ quizForm.addEventListener("submit", async (event) => {
 
   const score = Math.round((correctAnswers / course.quiz.length) * 100);
   courseProgress.quizScore = Math.max(courseProgress.quizScore || 0, score);
-  courseProgress.passed = score >= PASS_MARK || courseProgress.passed;
 
   if (score >= PASS_MARK) {
-    courseProgress.completedAt = new Date().toLocaleString("en-GB", {
-      dateStyle: "medium",
-      timeStyle: "short",
-    });
+    markTheoryPassed(course, courseProgress, score);
   }
 
   await saveProgress();
@@ -1366,10 +1463,12 @@ quizForm.addEventListener("submit", async (event) => {
   const resultText = document.getElementById("resultText");
   resultText.textContent =
     score >= PASS_MARK
-      ? `Passed with ${score}%. Your completion message is ready below.`
+      ? course.practicalRequired
+        ? `Theory passed with ${score}%. Command must now complete your in-game practical assessment.`
+        : `Passed with ${score}%. Your completion message is ready below.`
       : `Scored ${score}%. You need ${PASS_MARK}% to pass, so review the briefing and try again.`;
 
-  if (score >= PASS_MARK) {
+  if (score >= PASS_MARK && !course.practicalRequired) {
     completionPanel.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 });
@@ -1495,6 +1594,7 @@ managerForm.addEventListener("submit", async (event) => {
     );
     const quiz = collectQuizBuilder().filter((item) => item.question && item.answers.length >= 2);
     const quizEnabled = managerForm.elements.quizEnabled.checked;
+    const practicalRequired = managerForm.elements.practicalRequired.checked;
     const uploadedTrainingImage = await readImageFile(managerForm.elements.imageUpload.files[0]);
 
     if (!modules.length || (quizEnabled && !quiz.length)) {
@@ -1522,6 +1622,7 @@ managerForm.addEventListener("submit", async (event) => {
       fmsTrainingExpiryDate: managerForm.elements.fmsTrainingExpiryDate.value,
       fmsAutoRemoveOnExpiry: managerForm.elements.fmsAutoRemoveOnExpiry.checked,
       quizEnabled,
+      practicalRequired,
       modules,
       quiz,
     };

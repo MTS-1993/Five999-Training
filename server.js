@@ -243,6 +243,7 @@ function sanitizeCourses(courses) {
     fmsTrainingExpiryDate: sanitizeExpiryDate(course.fmsTrainingExpiryDate),
     fmsAutoRemoveOnExpiry: course.fmsAutoRemoveOnExpiry !== false,
     quizEnabled: course.quizEnabled !== false,
+    practicalRequired: course.practicalRequired === true,
     modules: Array.isArray(course.modules)
       ? course.modules.map((module) => ({
           title: String(module.title || "Module").slice(0, 90),
@@ -511,6 +512,7 @@ async function getAllProgressRows() {
 function buildStats(courses, progressRows) {
   const courseMap = new Map(courses.map((course) => [course.id, course]));
   const feedback = [];
+  const practicalAssessments = [];
   const courseStats = courses.map((course) => ({
     id: course.id,
     title: course.title,
@@ -563,6 +565,19 @@ function buildStats(courses, progressRows) {
           submittedAt: progress.feedback.submittedAt || row.updatedAt || null,
         });
       }
+      if (course.practicalRequired && progress.theoryPassed && !progress.passed) {
+        practicalAssessments.push({
+          discordId: row.discordId,
+          username: row.username,
+          courseId,
+          courseTitle: course.title,
+          service: course.service,
+          status: progress.practicalStatus || "pending",
+          theoryPassedAt: progress.theoryPassedAt || row.updatedAt || null,
+          assessedAt: progress.practicalAssessedAt || "",
+          assessedBy: progress.practicalAssessedBy || "",
+        });
+      }
     }
 
     return {
@@ -601,8 +616,31 @@ function buildStats(courses, progressRows) {
     },
     courses: courseStats,
     users,
+    practicalAssessments: practicalAssessments.sort((a, b) =>
+      String(b.theoryPassedAt || "").localeCompare(String(a.theoryPassedAt || "")),
+    ),
     feedback: feedback.sort((a, b) => String(b.submittedAt || "").localeCompare(String(a.submittedAt || ""))),
   };
+}
+
+function protectPracticalProgress(oldProgress, nextProgress, courses) {
+  const practicalCourseIds = new Set(courses.filter((course) => course.practicalRequired).map((course) => course.id));
+  for (const courseId of practicalCourseIds) {
+    const incoming = nextProgress?.[courseId];
+    if (!incoming) continue;
+    const existing = oldProgress?.[courseId];
+    if (!existing?.passed && incoming.passed) {
+      incoming.passed = false;
+      incoming.completedAt = null;
+      if (existing?.theoryPassed || incoming.theoryPassed) {
+        incoming.theoryPassed = true;
+        incoming.practicalStatus = incoming.practicalStatus || "pending";
+      } else {
+        incoming.practicalStatus = "";
+      }
+    }
+  }
+  return nextProgress;
 }
 
 async function saveProgress(user, progress) {
@@ -627,6 +665,34 @@ async function saveProgress(user, progress) {
   data[user.id] = {
     username: user.globalName || user.username,
     avatar: user.avatar,
+    progress: progress || {},
+    updatedAt: new Date().toISOString(),
+  };
+  await writeFileStore(data);
+}
+
+async function saveProgressRow(row, progress) {
+  if (pool) {
+    await ensureDatabase();
+    await pool.query(
+      `
+        insert into training_progress (discord_id, username, avatar, progress, updated_at)
+        values ($1, $2, $3, $4, now())
+        on conflict (discord_id) do update set
+          username = excluded.username,
+          avatar = excluded.avatar,
+          progress = excluded.progress,
+          updated_at = now()
+      `,
+      [row.discordId, row.username || "Unknown user", row.avatar || null, JSON.stringify(progress || {})],
+    );
+    return;
+  }
+
+  const data = await readFileStore();
+  data[row.discordId] = {
+    username: row.username || "Unknown user",
+    avatar: row.avatar || null,
     progress: progress || {},
     updatedAt: new Date().toISOString(),
   };
@@ -700,6 +766,73 @@ app.get("/api/stats", requireUser, async (req, res, next) => {
   }
 });
 
+app.post("/api/practical-assessments", requireUser, async (req, res, next) => {
+  try {
+    const access = await getAccess(req.user);
+    if (!access.command) {
+      res.status(403).json({ error: "Command or Leadership role required." });
+      return;
+    }
+
+    const { discordId, courseId, status } = req.body || {};
+    if (!discordId || !courseId || !["passed", "failed"].includes(status)) {
+      res.status(400).json({ error: "Discord ID, course ID, and practical status are required." });
+      return;
+    }
+
+    const courses = await getCourses();
+    const course = courses.find((item) => item.id === courseId && item.practicalRequired);
+    if (!course) {
+      res.status(404).json({ error: "Practical training course not found." });
+      return;
+    }
+
+    const rows = await getAllProgressRows();
+    const row = rows.find((item) => item.discordId === discordId);
+    const oldProgress = JSON.parse(JSON.stringify(row?.progress || {}));
+    const nextProgress = JSON.parse(JSON.stringify(row?.progress || {}));
+    const courseProgress = nextProgress[courseId];
+
+    if (!row || !courseProgress?.theoryPassed) {
+      res.status(400).json({ error: "Player must pass the theory stage before practical assessment." });
+      return;
+    }
+
+    courseProgress.practicalStatus = status;
+    courseProgress.practicalAssessedAt = new Date().toLocaleString("en-GB", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+    courseProgress.practicalAssessedBy = req.user.globalName || req.user.username;
+
+    if (status === "passed") {
+      courseProgress.passed = true;
+      courseProgress.completedAt = courseProgress.practicalAssessedAt;
+    } else {
+      courseProgress.passed = false;
+      courseProgress.completedAt = null;
+    }
+
+    await syncNewFmsCompletions(
+      { id: discordId, username: row.username, globalName: row.username },
+      oldProgress,
+      nextProgress,
+      courses,
+    );
+    await saveProgressRow(row, nextProgress);
+    notifyNewCompletions(
+      { id: discordId, username: row.username, globalName: row.username },
+      oldProgress,
+      nextProgress,
+      courses,
+    ).catch(console.error);
+
+    res.json({ ok: true, stats: buildStats(courses, await getAllProgressRows()) });
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.get("/api/progress", requireUser, async (req, res, next) => {
   try {
     res.json({ progress: await getProgress(req.user) });
@@ -713,10 +846,11 @@ app.put("/api/progress", requireUser, async (req, res, next) => {
     const oldProgress = await getProgress(req.user);
     const nextProgress = req.body.progress || {};
     const courses = await getCourses();
-    await syncNewFmsCompletions(req.user, oldProgress, nextProgress, courses);
-    await saveProgress(req.user, nextProgress);
-    notifyNewCompletions(req.user, oldProgress, nextProgress, courses).catch(console.error);
-    res.json({ ok: true, progress: nextProgress });
+    const protectedProgress = protectPracticalProgress(oldProgress, nextProgress, courses);
+    await syncNewFmsCompletions(req.user, oldProgress, protectedProgress, courses);
+    await saveProgress(req.user, protectedProgress);
+    notifyNewCompletions(req.user, oldProgress, protectedProgress, courses).catch(console.error);
+    res.json({ ok: true, progress: protectedProgress });
   } catch (error) {
     next(error);
   }
