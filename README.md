@@ -37,7 +37,6 @@ A Render-hosted training dashboard for Five999 players to sign in with Discord, 
 - Player feedback form after completing a course
 - Optional Discord DM notification when a player completes a training
 - Optional Albo FMS training group award when a player passes a course
-- Discord support ticket button for role requests through FMS
 - Sidebar copyright: Five RP Group 2026
 - Mobile-friendly Command training management layout
 - Render web-service configuration included
@@ -49,7 +48,6 @@ Set these in Render:
 - `DISCORD_CLIENT_ID`
 - `DISCORD_CLIENT_SECRET`
 - `DISCORD_REDIRECT_URI`
-- `DISCORD_TICKET_URL`
 - `DISCORD_GUILD_ID`
 - `DISCORD_BOT_TOKEN`
 - `COMMAND_ROLE_IDS`
@@ -62,7 +60,7 @@ Set these in Render:
 
 `SESSION_SECRET` can be any long random secret. `DATABASE_URL` should come from a Render PostgreSQL database if you want progress to persist reliably.
 
-`COMMAND_ROLE_IDS` and `LEADERSHIP_ROLE_IDS` are comma-separated Discord role IDs. Leadership users automatically get Command permissions too. The bot token is used only to read the signed-in member's roles from your Discord server, so the bot must be in the Five999 Discord server.
+`COMMAND_ROLE_IDS` and `LEADERSHIP_ROLE_IDS` are comma-separated Discord role IDs. Leadership users automatically get Command permissions too. The bot token is used to read signed-in member roles and send optional DMs, so the bot must be in the Five999 Discord server.
 
 For local testing without `DATABASE_URL`, progress is saved to `data/progress.json`.
 

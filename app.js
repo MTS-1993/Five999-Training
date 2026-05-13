@@ -1,4 +1,3 @@
-let DISCORD_TICKET_URL = "https://discord.com/channels/YOUR_SERVER_ID/YOUR_TICKET_CHANNEL_ID";
 const PASS_MARK = 80;
 
 const serviceSections = [
@@ -60,7 +59,6 @@ const certificatePreviewWrap = document.getElementById("certificatePreviewWrap")
 const certificatePreview = document.getElementById("certificatePreview");
 const downloadCertificateButton = document.getElementById("downloadCertificateButton");
 const downloadPdfCertificateButton = document.getElementById("downloadPdfCertificateButton");
-const ticketLink = document.getElementById("ticketLink");
 const feedbackForm = document.getElementById("feedbackForm");
 const feedbackRating = document.getElementById("feedbackRating");
 const feedbackComment = document.getElementById("feedbackComment");
@@ -77,8 +75,6 @@ const managerCourseSelect = document.getElementById("managerCourseSelect");
 const managerService = document.getElementById("managerService");
 const newTrainingButton = document.getElementById("newTrainingButton");
 const deleteTrainingButton = document.getElementById("deleteTrainingButton");
-const testFmsButton = document.getElementById("testFmsButton");
-const fmsTestResult = document.getElementById("fmsTestResult");
 const addModuleButton = document.getElementById("addModuleButton");
 const addQuestionButton = document.getElementById("addQuestionButton");
 const moduleBuilder = document.getElementById("moduleBuilder");
@@ -99,8 +95,6 @@ const statsSummary = document.getElementById("statsSummary");
 const statsCourseBody = document.getElementById("statsCourseBody");
 const statsUserBody = document.getElementById("statsUserBody");
 const statsFeedbackBody = document.getElementById("statsFeedbackBody");
-
-ticketLink.href = DISCORD_TICKET_URL;
 
 function applyTheme() {
   document.body.classList.toggle("dark-theme", currentTheme === "dark");
@@ -982,10 +976,10 @@ function renderCompletion(course) {
     Completed: ${courseProgress.completedAt}<br /><br />
     ${
       courseProgress.fmsTrainingSync
-        ? `FMS role sync: ${escapeHtml(courseProgress.fmsTrainingSync.message)}<br /><br />`
+        ? `FMS training sync: ${escapeHtml(courseProgress.fmsTrainingSync.message)}<br /><br />`
         : ""
     }
-    Please open a support ticket in Discord to obtain the role via FMS.
+    Your FMS training group will handle any linked role allocation automatically.
   `;
   feedbackRating.value = courseProgress.feedback?.rating || "";
   feedbackComment.value = courseProgress.feedback?.comment || "";
@@ -1373,20 +1367,6 @@ refreshStatsButton.addEventListener("click", () => {
   loadStats();
 });
 
-testFmsButton.addEventListener("click", async () => {
-  if (!canManageTrainings()) return;
-  fmsTestResult.textContent = "Testing FMS connection...";
-  try {
-    const result = await api("/api/fms/test");
-    const groups = result.groups?.length
-      ? ` Current groups: ${result.groups.map((group) => group.name).join(", ")}.`
-      : " No current groups returned.";
-    fmsTestResult.textContent = `${result.message}${groups} Outbound IP: ${result.outboundIp || "unknown"}.`;
-  } catch (error) {
-    fmsTestResult.textContent = `FMS test failed: ${error.message}`;
-  }
-});
-
 downloadCertificateButton.addEventListener("click", () => {
   downloadCertificate();
 });
@@ -1487,9 +1467,7 @@ managerForm.addEventListener("submit", async (event) => {
 
 async function init() {
   const config = await api("/api/config");
-  DISCORD_TICKET_URL = config.discordTicketUrl || DISCORD_TICKET_URL;
   authConfigured = config.authConfigured;
-  ticketLink.href = DISCORD_TICKET_URL;
 
   const me = await api("/api/me");
   currentUser = me.user;

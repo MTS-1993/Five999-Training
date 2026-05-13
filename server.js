@@ -16,7 +16,6 @@ const {
   DISCORD_CLIENT_ID,
   DISCORD_CLIENT_SECRET,
   DISCORD_REDIRECT_URI,
-  DISCORD_TICKET_URL = "https://discord.com/channels/YOUR_SERVER_ID/YOUR_TICKET_CHANNEL_ID",
   DISCORD_GUILD_ID,
   DISCORD_BOT_TOKEN,
   COMMAND_ROLE_IDS = "",
@@ -395,17 +394,6 @@ async function fmsRequest(route, options = {}) {
   return data;
 }
 
-async function getOutboundIp() {
-  try {
-    const response = await fetch("https://api.ipify.org?format=json");
-    if (!response.ok) return "";
-    const data = await response.json();
-    return data.ip || "";
-  } catch {
-    return "";
-  }
-}
-
 async function addFmsTrainingGroups(user, course, courseProgress) {
   const groupIds = parseNumericIds(course.fmsTrainingGroupIds);
   if (!groupIds.length || !FMS_API_BASE_URL || !FMS_API_TOKEN) return null;
@@ -468,6 +456,7 @@ async function syncNewFmsCompletions(user, oldProgress, nextProgress, courses) {
         syncedAt: new Date().toISOString(),
       };
     }
+
   }
 }
 
@@ -486,7 +475,7 @@ async function notifyNewCompletions(user, oldProgress, nextProgress, courses) {
         `Completed as: ${user.globalName || user.username}`,
         item.quizScore === null ? "No quiz was required." : `Score: ${item.quizScore}%`,
         `Date: ${item.completedAt || new Date().toLocaleString("en-GB")}`,
-        "Please open a support ticket in the Five999 Discord to obtain the role via FMS.",
+        "Your FMS training group has been updated where configured.",
       ].join("\n"),
     );
   }
@@ -644,7 +633,6 @@ async function saveProgress(user, progress) {
 
 app.get("/api/config", (req, res) => {
   res.json({
-    discordTicketUrl: DISCORD_TICKET_URL,
     authConfigured: Boolean(DISCORD_CLIENT_ID && DISCORD_CLIENT_SECRET && DISCORD_REDIRECT_URI),
     roleChecksConfigured: Boolean(DISCORD_GUILD_ID && DISCORD_BOT_TOKEN),
     dmNotificationsConfigured: DISCORD_DM_NOTIFICATIONS === "true" && Boolean(DISCORD_BOT_TOKEN),
@@ -702,41 +690,6 @@ app.get("/api/stats", requireUser, async (req, res, next) => {
     res.json({ stats: buildStats(await getCourses(), await getAllProgressRows()) });
   } catch (error) {
     next(error);
-  }
-});
-
-app.get("/api/fms/test", requireUser, async (req, res) => {
-  const outboundIp = await getOutboundIp();
-  const testPath = `/training/groups/user?discordid=${encodeURIComponent(req.user.id)}`;
-  const testUrl = fmsApiUrl(testPath);
-  try {
-    const access = await getAccess(req.user);
-    if (!access.command) {
-      res.status(403).json({ error: "Command or Leadership role required." });
-      return;
-    }
-
-    if (!FMS_API_BASE_URL || !FMS_API_TOKEN) {
-      res.status(400).json({ error: "FMS_API_BASE_URL and FMS_API_TOKEN must both be set in Render." });
-      return;
-    }
-
-    const data = await fmsRequest(testPath);
-    res.json({
-      ok: true,
-      message: "FMS API connection works. This Discord account was found.",
-      outboundIp,
-      testUrl,
-      groups: data?.data || [],
-    });
-  } catch (error) {
-    res.status(error.status || 500).json({
-      ok: false,
-      error: error.message || "FMS API test failed.",
-      status: error.status || 500,
-      outboundIp,
-      testUrl,
-    });
   }
 });
 
