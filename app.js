@@ -578,22 +578,30 @@ function renderModuleBuilder(modules = []) {
     .join("");
 
   moduleBuilder.querySelectorAll("[data-remove-module]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const modules = collectModuleBuilder();
-      modules.splice(Number(button.dataset.removeModule), 1);
-      renderModuleBuilder(modules);
+    button.addEventListener("click", async () => {
+      try {
+        const modules = await applyUploadedImagesToModules(collectModuleBuilder());
+        modules.splice(Number(button.dataset.removeModule), 1);
+        renderModuleBuilder(modules);
+      } catch (error) {
+        managerResult.textContent = error.message || "Module image upload failed.";
+      }
     });
   });
   moduleBuilder.querySelectorAll("[data-add-module-after]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const modules = collectModuleBuilder();
-      modules.splice(Number(button.dataset.addModuleAfter) + 1, 0, {
-        title: `Module ${modules.length + 1}`,
-        content: "",
-        imageUrl: "",
-        resourceUrl: "",
-      });
-      renderModuleBuilder(modules);
+    button.addEventListener("click", async () => {
+      try {
+        const modules = await applyUploadedImagesToModules(collectModuleBuilder());
+        modules.splice(Number(button.dataset.addModuleAfter) + 1, 0, {
+          title: `Module ${modules.length + 1}`,
+          content: "",
+          imageUrl: "",
+          resourceUrl: "",
+        });
+        renderModuleBuilder(modules);
+      } catch (error) {
+        managerResult.textContent = error.message || "Module image upload failed.";
+      }
     });
   });
 }
@@ -1461,10 +1469,14 @@ deleteTrainingButton.addEventListener("click", async () => {
   render();
 });
 
-addModuleButton.addEventListener("click", () => {
-  const modules = collectModuleBuilder();
-  modules.push({ title: `Module ${modules.length + 1}`, content: "", imageUrl: "", resourceUrl: "" });
-  renderModuleBuilder(modules);
+addModuleButton.addEventListener("click", async () => {
+  try {
+    const modules = await applyUploadedImagesToModules(collectModuleBuilder());
+    modules.push({ title: `Module ${modules.length + 1}`, content: "", imageUrl: "", resourceUrl: "" });
+    renderModuleBuilder(modules);
+  } catch (error) {
+    managerResult.textContent = error.message || "Module image upload failed.";
+  }
 });
 
 addQuestionButton.addEventListener("click", () => {

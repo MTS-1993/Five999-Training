@@ -45,7 +45,7 @@ const pool = DATABASE_URL
 
 let databaseReady = false;
 
-app.use(express.json({ limit: "50mb" }));
+app.use(express.json({ limit: "120mb" }));
 
 app.get("/", (req, res) => {
   res.setHeader("Cache-Control", "no-store");
@@ -164,11 +164,12 @@ function hasAnyRole(memberRoleIds, allowedRoleIds) {
 }
 
 function sanitizeUrl(value) {
-  const url = String(value || "").trim().slice(0, 1000);
-  if (!url) return "";
-  if (/^data:image\/(png|jpeg|jpg|webp|gif);base64,[a-z0-9+/=]+$/i.test(url)) {
-    return String(value || "").trim().slice(0, 12_000_000);
+  const rawUrl = String(value || "").trim();
+  if (/^data:image\/(png|jpeg|jpg|webp|gif);base64,[a-z0-9+/=]+$/i.test(rawUrl)) {
+    return rawUrl.slice(0, 12_000_000);
   }
+  const url = rawUrl.slice(0, 1000);
+  if (!url) return "";
   try {
     const parsed = new URL(url);
     return ["http:", "https:"].includes(parsed.protocol) ? url : "";
