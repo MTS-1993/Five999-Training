@@ -30,7 +30,7 @@ A Render-hosted training dashboard for Five999 players to sign in with Discord, 
 - Saved progress and completed trainings by Discord account
 - Separate player training profile with progress badges for each course
 - Home screen dark/light mode toggle
-- Completion message for players to screenshot
+- Completion message confirming the FMS training group update
 - Downloadable completion certificate with player name, course, date, and Five999 logo
 - Downloadable PDF certificate as well as PNG certificate
 - Certificate preview after completing a course
