@@ -1900,6 +1900,57 @@ textarea {
   background: var(--surface);
 }
 
+.dark-theme input,
+.dark-theme select,
+.dark-theme textarea {
+  border-color: #3a5c74;
+  background: #102f46;
+  color: #f6f9fb;
+}
+
+.dark-theme input::placeholder,
+.dark-theme textarea::placeholder {
+  color: #b8c8d3;
+  opacity: 1;
+}
+
+.dark-theme input[type="file"] {
+  color: #f6f9fb;
+}
+
+.dark-theme input[type="file"]::file-selector-button {
+  border: 1px solid #4f7087;
+  border-radius: 6px;
+  background: #f6f9fb;
+  color: #071827;
+  font-weight: 800;
+}
+
+.dark-theme .toggle-row {
+  border-color: #3a5c74;
+  background: #102f46;
+  color: #f6f9fb;
+}
+
+.dark-theme .field-label,
+.dark-theme .field-hint,
+.dark-theme .section-subtitle,
+.dark-theme .topbar-subtitle {
+  color: #c4d1da;
+}
+
+.dark-theme .builder-heading,
+.dark-theme .manager-side-panel,
+.dark-theme .manager-layout > div:first-child,
+.dark-theme .editor-mode-card {
+  border-color: #3a5c74;
+}
+
+.dark-theme .danger-button {
+  color: #ffb9bd;
+  border-color: #b85660;
+}
+
 @media (max-width: 980px) {
   .app-shell {
     grid-template-columns: 1fr;
