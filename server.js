@@ -364,12 +364,15 @@ async function sendDiscordDm(discordId, message) {
 
 async function fmsRequest(route, options = {}) {
   const url = fmsApiUrl(route);
-  if (!url || !FMS_API_TOKEN) return null;
+  const token = FMS_API_TOKEN.trim();
+  if (!url || !token) return null;
 
   const response = await fetch(url, {
     ...options,
     headers: {
-      "api-token": FMS_API_TOKEN,
+      Accept: "application/json, text/plain;q=0.9, */*;q=0.8",
+      "User-Agent": "Five999-Training-Dashboard/1.0",
+      "api-token": token,
       "Content-Type": "application/json",
       ...(options.headers || {}),
     },
