@@ -35,6 +35,9 @@ let adminMode = false;
 let adminView = "editor";
 let statsLoaded = false;
 let courseSearchTerm = "";
+let latestStats = null;
+const certificatePreviewCache = new Map();
+const pendingCertificatePreviews = new Set();
 
 const courseList = document.getElementById("courseList");
 const courseSearch = document.getElementById("courseSearch");
@@ -821,6 +824,7 @@ function renderPlayerHistory(user) {
 }
 
 function renderStats(stats) {
+  latestStats = stats;
   const totals = stats.totals || {};
   statsSummary.innerHTML = `
     <div class="stat-card"><span>Users tracked</span><strong>${totals.users || 0}</strong></div>
@@ -864,13 +868,6 @@ function renderStats(stats) {
         .join("")
     : `<tr><td colspan="7">No player progress has been saved yet.</td></tr>`;
 
-  statsUserBody.querySelectorAll("[data-player-history]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const user = (stats.users || []).find((item) => item.discordId === button.dataset.playerHistory);
-      renderPlayerHistory(user);
-    });
-  });
-
   statsPracticalBody.innerHTML = stats.practicalAssessments?.length
     ? stats.practicalAssessments
         .map(
@@ -910,16 +907,6 @@ function renderStats(stats) {
         .join("")
     : `<tr><td colspan="6">No training feedback has been submitted yet.</td></tr>`;
 
-  statsPracticalBody.querySelectorAll("[data-practical-pass]").forEach((button) => {
-    button.addEventListener("click", () =>
-      updatePracticalAssessment(button.dataset.practicalPass, button.dataset.courseId, "passed"),
-    );
-  });
-  statsPracticalBody.querySelectorAll("[data-practical-fail]").forEach((button) => {
-    button.addEventListener("click", () =>
-      updatePracticalAssessment(button.dataset.practicalFail, button.dataset.courseId, "failed"),
-    );
-  });
 }
 
 async function updatePracticalAssessment(discordId, courseId, status) {
@@ -1011,7 +998,7 @@ function renderCourseList() {
         expandedServices.add(selectedService);
       }
       selectedModuleIndex = 0;
-      render();
+      renderCourseList();
     });
   });
 
@@ -1220,15 +1207,32 @@ function renderCompletion(course) {
   feedbackRating.value = courseProgress.feedback?.rating || "";
   feedbackComment.value = courseProgress.feedback?.comment || "";
   feedbackResult.textContent = courseProgress.feedback ? "Feedback saved. Thank you." : "";
-  createCertificateCanvas()
-    .then((canvas) => {
-      if (!canvas || getCourse()?.id !== course.id) return;
-      certificatePreview.src = canvas.toDataURL("image/png");
-      certificatePreviewWrap.hidden = false;
-    })
-    .catch(() => {
-      certificatePreviewWrap.hidden = true;
-    });
+  const previewKey = `${course.id}:${courseProgress.completedAt || ""}:${courseProgress.quizScore ?? "no-quiz"}`;
+  const cachedPreview = certificatePreviewCache.get(previewKey);
+  if (cachedPreview) {
+    certificatePreview.src = cachedPreview;
+    certificatePreviewWrap.hidden = false;
+    return;
+  }
+  if (pendingCertificatePreviews.has(previewKey)) return;
+
+  pendingCertificatePreviews.add(previewKey);
+  const schedulePreview = window.requestIdleCallback || ((callback) => window.setTimeout(callback, 80));
+  schedulePreview(() => {
+    createCertificateCanvas(course.id)
+      .then((canvas) => {
+        pendingCertificatePreviews.delete(previewKey);
+        if (!canvas || getCourse()?.id !== course.id) return;
+        const dataUrl = canvas.toDataURL("image/png");
+        certificatePreviewCache.set(previewKey, dataUrl);
+        certificatePreview.src = dataUrl;
+        certificatePreviewWrap.hidden = false;
+      })
+      .catch(() => {
+        pendingCertificatePreviews.delete(previewKey);
+        certificatePreviewWrap.hidden = true;
+      });
+  });
 }
 
 function loadImage(src) {
@@ -1615,6 +1619,26 @@ refreshStatsButton.addEventListener("click", () => {
   loadStats();
 });
 
+statsUserBody.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-player-history]");
+  if (!button) return;
+  const users = latestStats?.users || [];
+  const user = users.find((item) => item.discordId === button.dataset.playerHistory);
+  renderPlayerHistory(user);
+});
+
+statsPracticalBody.addEventListener("click", (event) => {
+  const passButton = event.target.closest("[data-practical-pass]");
+  if (passButton) {
+    updatePracticalAssessment(passButton.dataset.practicalPass, passButton.dataset.courseId, "passed");
+    return;
+  }
+  const failButton = event.target.closest("[data-practical-fail]");
+  if (failButton) {
+    updatePracticalAssessment(failButton.dataset.practicalFail, failButton.dataset.courseId, "failed");
+  }
+});
+
 downloadCertificateButton.addEventListener("click", () => {
   downloadCertificate();
 });
@@ -1722,14 +1746,14 @@ managerForm.addEventListener("submit", async (event) => {
 });
 
 async function init() {
-  const config = await api("/api/config");
+  const [config, me, savedCourses] = await Promise.all([
+    api("/api/config"),
+    api("/api/me"),
+    api("/api/courses"),
+  ]);
   authConfigured = config.authConfigured;
-
-  const me = await api("/api/me");
   currentUser = me.user;
   currentAccess = me.access;
-
-  const savedCourses = await api("/api/courses");
   if (savedCourses.courses?.length) {
     courses = removeOldExampleTrainings(savedCourses.courses).map(normalizeCourse);
   } else {
