@@ -238,6 +238,7 @@ function sanitizeCourses(courses) {
     published: course.published !== false,
     imageUrl: sanitizeUrl(course.imageUrl),
     resourceUrl: sanitizeUrl(course.resourceUrl),
+    theoryFmsTrainingGroupIds: parseNumericIds(course.theoryFmsTrainingGroupIds),
     fmsTrainingGroupIds: parseNumericIds(course.fmsTrainingGroupIds),
     fmsTrainingNote: String(course.fmsTrainingNote || "").slice(0, 500),
     fmsTrainingExpiryDate: sanitizeExpiryDate(course.fmsTrainingExpiryDate),
@@ -397,8 +398,8 @@ async function fmsRequest(route, options = {}) {
   return data;
 }
 
-async function addFmsTrainingGroups(user, course, courseProgress) {
-  const groupIds = parseNumericIds(course.fmsTrainingGroupIds);
+async function addFmsTrainingGroups(user, course, groupIds, note, message) {
+  groupIds = parseNumericIds(groupIds);
   if (!groupIds.length || !FMS_API_BASE_URL || !FMS_API_TOKEN) return null;
 
   const lookup = await fmsRequest(`/training/groups/user?discordid=${encodeURIComponent(user.id)}`);
@@ -409,7 +410,7 @@ async function addFmsTrainingGroups(user, course, courseProgress) {
     return {
       ok: true,
       skipped: true,
-      message: "FMS user already has the configured training group(s).",
+      message: `FMS user already has the configured ${message}.`,
       groupIds,
       syncedAt: new Date().toISOString(),
     };
@@ -419,7 +420,7 @@ async function addFmsTrainingGroups(user, course, courseProgress) {
     discordid: user.id,
     groupids: missingIds,
     note:
-      course.fmsTrainingNote ||
+      note ||
       `Automatically awarded after passing ${course.title} through Five999 Training Hub.`,
     autoremoveonexpiry: course.fmsAutoRemoveOnExpiry !== false,
   };
@@ -433,10 +434,24 @@ async function addFmsTrainingGroups(user, course, courseProgress) {
   return {
     ok: true,
     skipped: false,
-    message: "FMS training group(s) added.",
+    message: `FMS ${message} added.`,
     groupIds: missingIds,
     syncedAt: new Date().toISOString(),
   };
+}
+
+async function addFinalFmsTrainingGroups(user, course) {
+  return addFmsTrainingGroups(user, course, course.fmsTrainingGroupIds, course.fmsTrainingNote, "training group(s)");
+}
+
+async function addTheoryFmsTrainingGroups(user, course) {
+  return addFmsTrainingGroups(
+    user,
+    course,
+    course.theoryFmsTrainingGroupIds,
+    `Theory passed for ${course.title}; awaiting in-game practical.`,
+    "theory/awaiting practical group(s)",
+  );
 }
 
 async function syncNewFmsCompletions(user, oldProgress, nextProgress, courses) {
@@ -448,7 +463,7 @@ async function syncNewFmsCompletions(user, oldProgress, nextProgress, courses) {
   for (const [courseId, courseProgress] of newlyCompleted) {
     const course = courseMap.get(courseId);
     try {
-      const result = await addFmsTrainingGroups(user, course, courseProgress);
+      const result = await addFinalFmsTrainingGroups(user, course);
       if (result) {
         courseProgress.fmsTrainingSync = result;
       }
@@ -460,6 +475,29 @@ async function syncNewFmsCompletions(user, oldProgress, nextProgress, courses) {
       };
     }
 
+  }
+}
+
+async function syncNewFmsTheoryPasses(user, oldProgress, nextProgress, courses) {
+  const courseMap = new Map(courses.map((course) => [course.id, course]));
+  const newlyTheoryPassed = Object.entries(nextProgress || {}).filter(([courseId, item]) => {
+    return item?.theoryPassed && !oldProgress?.[courseId]?.theoryPassed && courseMap.has(courseId);
+  });
+
+  for (const [courseId, courseProgress] of newlyTheoryPassed) {
+    const course = courseMap.get(courseId);
+    try {
+      const result = await addTheoryFmsTrainingGroups(user, course);
+      if (result) {
+        courseProgress.fmsTheorySync = result;
+      }
+    } catch (error) {
+      courseProgress.fmsTheorySync = {
+        ok: false,
+        message: error.message || "FMS theory training group sync failed.",
+        syncedAt: new Date().toISOString(),
+      };
+    }
   }
 }
 
@@ -533,6 +571,7 @@ function buildStats(courses, progressRows) {
     let passed = 0;
     const scores = [];
     const completedCourses = [];
+    const history = [];
 
     for (const [courseId, progress] of Object.entries(row.progress || {})) {
       const course = courseMap.get(courseId);
@@ -543,6 +582,23 @@ function buildStats(courses, progressRows) {
         started += 1;
         stats.started += 1;
       }
+      history.push({
+        courseId,
+        courseTitle: course.title,
+        service: course.service,
+        division: course.division,
+        status: progress.passed
+          ? "Completed"
+          : course.practicalRequired && progress.theoryPassed
+            ? "Practical required"
+            : hasStarted
+              ? "In progress"
+              : "Not started",
+        theoryPassedAt: progress.theoryPassedAt || "",
+        practicalStatus: progress.practicalStatus || "",
+        completedAt: progress.completedAt || "",
+        quizScore: typeof progress.quizScore === "number" ? progress.quizScore : null,
+      });
       if (progress.passed) {
         completed += 1;
         passed += 1;
@@ -591,6 +647,7 @@ function buildStats(courses, progressRows) {
         ? Math.round(scores.reduce((total, score) => total + score, 0) / scores.length)
         : null,
       completedCourses,
+      history,
       updatedAt: row.updatedAt,
     };
   });
@@ -847,6 +904,7 @@ app.put("/api/progress", requireUser, async (req, res, next) => {
     const nextProgress = req.body.progress || {};
     const courses = await getCourses();
     const protectedProgress = protectPracticalProgress(oldProgress, nextProgress, courses);
+    await syncNewFmsTheoryPasses(req.user, oldProgress, protectedProgress, courses);
     await syncNewFmsCompletions(req.user, oldProgress, protectedProgress, courses);
     await saveProgress(req.user, protectedProgress);
     notifyNewCompletions(req.user, oldProgress, protectedProgress, courses).catch(console.error);

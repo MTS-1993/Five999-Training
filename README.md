@@ -22,11 +22,13 @@ A Render-hosted training dashboard for Five999 players to sign in with Discord, 
 - Separate role-locked Create/Edit/Delete area, no JSON editing required
 - Draft/published toggle so Command can prepare trainings before players see them
 - Role-locked admin analytics for Command and Leadership teams
+- Clickable player profiles in analytics with full training history
 - Training feedback table in Command analytics
 - Optional image URLs and resource URLs for trainings and modules
 - Uploaded images for trainings and modules, stored with the training record
 - Quiz requirement can be toggled on or off per training
 - Optional in-game practical stage after theory, with Command practical pass/fail approval
+- Optional theory-passed FMS group award for awaiting-practical roles
 - Quiz questions can use two or more answers, so yes/no questions are supported
 - Quiz locked until all modules are marked read
 - 80% pass requirement

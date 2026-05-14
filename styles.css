@@ -1162,6 +1162,19 @@ h2 {
   background: var(--surface-2);
 }
 
+.analytics-detail-panel {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.analytics-detail-panel[hidden] {
+  display: none;
+}
+
 .analytics-panel[hidden],
 .manager-layout[hidden] {
   display: none;
@@ -2033,6 +2046,11 @@ textarea {
   border-color: #3a5c74;
   background: #102f46;
   color: #f6f9fb;
+}
+
+.dark-theme .analytics-detail-panel {
+  border-color: #3a5c74;
+  background: #102f46;
 }
 
 .dark-theme .analytics-table th {

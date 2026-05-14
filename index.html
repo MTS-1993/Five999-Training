@@ -10,7 +10,7 @@
       href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Inter:wght@500;600;700;800;900&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css?v=20260514-1" />
+    <link rel="stylesheet" href="styles.css?v=20260514-2" />
   </head>
   <body>
     <div class="app-shell">
@@ -18,7 +18,7 @@
         <div class="brand">
           <img
             class="brand-logo"
-            src="assets/five999-training-logo.png?v=20260514-1"
+            src="assets/five999-training-logo.png?v=20260514-2"
             alt="Five999 Training"
           />
         </div>
@@ -277,11 +277,13 @@
                     <th>Pass Rate</th>
                     <th>Avg Score</th>
                     <th>Completed Trainings</th>
+                    <th>Profile</th>
                   </tr>
                 </thead>
                 <tbody id="statsUserBody"></tbody>
               </table>
             </div>
+            <div class="analytics-detail-panel" id="playerHistoryPanel" hidden></div>
             <div class="analytics-table-wrap">
               <h3>Practical Assessments</h3>
               <table class="analytics-table">
@@ -382,6 +384,13 @@
                 placeholder="Example: 1, 2"
               />
 
+              <label class="field-label" for="managerTheoryFmsTrainingGroupIds">Theory passed FMS training group IDs</label>
+              <input
+                id="managerTheoryFmsTrainingGroupIds"
+                name="theoryFmsTrainingGroupIds"
+                placeholder="Example: ARV awaiting practical group ID"
+              />
+
               <label class="field-label" for="managerFmsTrainingNote">FMS training note</label>
               <input
                 id="managerFmsTrainingNote"
@@ -434,6 +443,6 @@
       </main>
     </div>
 
-    <script src="app.js?v=20260514-1"></script>
+    <script src="app.js?v=20260514-2"></script>
   </body>
 </html>

@@ -99,6 +99,7 @@ const statsCourseBody = document.getElementById("statsCourseBody");
 const statsUserBody = document.getElementById("statsUserBody");
 const statsPracticalBody = document.getElementById("statsPracticalBody");
 const statsFeedbackBody = document.getElementById("statsFeedbackBody");
+const playerHistoryPanel = document.getElementById("playerHistoryPanel");
 
 function applyTheme() {
   document.body.classList.toggle("dark-theme", currentTheme === "dark");
@@ -181,6 +182,7 @@ function normalizeCourse(course) {
     published: course.published !== false,
     imageUrl: course.imageUrl || "",
     resourceUrl: course.resourceUrl || "",
+    theoryFmsTrainingGroupIds: Array.isArray(course.theoryFmsTrainingGroupIds) ? course.theoryFmsTrainingGroupIds : [],
     fmsTrainingGroupIds: Array.isArray(course.fmsTrainingGroupIds) ? course.fmsTrainingGroupIds : [],
     fmsTrainingNote: course.fmsTrainingNote || "",
     fmsTrainingExpiryDate: course.fmsTrainingExpiryDate || "",
@@ -389,6 +391,7 @@ function createBlankTraining() {
     published: true,
     imageUrl: "",
     resourceUrl: "",
+    theoryFmsTrainingGroupIds: [],
     fmsTrainingGroupIds: [],
     fmsTrainingNote: "",
     fmsTrainingExpiryDate: "",
@@ -477,6 +480,7 @@ function fillManagerForm(course) {
     managerForm.elements.imageUrl.value = "";
     managerForm.elements.imageUpload.value = "";
     managerForm.elements.resourceUrl.value = "";
+    managerForm.elements.theoryFmsTrainingGroupIds.value = "";
     managerForm.elements.fmsTrainingGroupIds.value = "";
     managerForm.elements.fmsTrainingNote.value = "";
     managerForm.elements.fmsTrainingExpiryDate.value = "";
@@ -502,6 +506,7 @@ function fillManagerForm(course) {
   managerForm.elements.imageUrl.value = normalized.imageUrl || "";
   managerForm.elements.imageUpload.value = "";
   managerForm.elements.resourceUrl.value = normalized.resourceUrl || "";
+  managerForm.elements.theoryFmsTrainingGroupIds.value = (normalized.theoryFmsTrainingGroupIds || []).join(", ");
   managerForm.elements.fmsTrainingGroupIds.value = (normalized.fmsTrainingGroupIds || []).join(", ");
   managerForm.elements.fmsTrainingNote.value = normalized.fmsTrainingNote || "";
   managerForm.elements.fmsTrainingExpiryDate.value = normalized.fmsTrainingExpiryDate || "";
@@ -761,9 +766,58 @@ function renderManagement() {
 function renderEmptyStats(message) {
   statsSummary.innerHTML = `<div class="stat-card"><span>Status</span><strong>${escapeHtml(message)}</strong></div>`;
   statsCourseBody.innerHTML = `<tr><td colspan="6">${escapeHtml(message)}</td></tr>`;
-  statsUserBody.innerHTML = `<tr><td colspan="6">${escapeHtml(message)}</td></tr>`;
+  statsUserBody.innerHTML = `<tr><td colspan="7">${escapeHtml(message)}</td></tr>`;
   statsPracticalBody.innerHTML = `<tr><td colspan="6">${escapeHtml(message)}</td></tr>`;
   statsFeedbackBody.innerHTML = `<tr><td colspan="6">${escapeHtml(message)}</td></tr>`;
+  playerHistoryPanel.hidden = true;
+}
+
+function renderPlayerHistory(user) {
+  if (!user) {
+    playerHistoryPanel.hidden = true;
+    return;
+  }
+  playerHistoryPanel.hidden = false;
+  playerHistoryPanel.innerHTML = `
+    <div class="panel-heading">
+      <div>
+        <p class="eyebrow">Player profile</p>
+        <h3>${escapeHtml(user.username)}</h3>
+      </div>
+    </div>
+    <div class="analytics-table-wrap">
+      <table class="analytics-table">
+        <thead>
+          <tr>
+            <th>Training</th>
+            <th>Service</th>
+            <th>Status</th>
+            <th>Score</th>
+            <th>Theory Passed</th>
+            <th>Completed</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${(user.history || []).length
+            ? user.history
+                .map(
+                  (item) => `
+                    <tr>
+                      <td>${escapeHtml(item.courseTitle)}</td>
+                      <td>${escapeHtml(item.service)}</td>
+                      <td>${escapeHtml(item.status)}</td>
+                      <td>${item.quizScore === null ? "N/A" : `${item.quizScore}%`}</td>
+                      <td>${escapeHtml(item.theoryPassedAt || "N/A")}</td>
+                      <td>${escapeHtml(item.completedAt || "N/A")}</td>
+                    </tr>
+                  `,
+                )
+                .join("")
+            : `<tr><td colspan="6">No saved training history.</td></tr>`}
+        </tbody>
+      </table>
+    </div>
+  `;
 }
 
 function renderStats(stats) {
@@ -803,11 +857,19 @@ function renderStats(stats) {
               <td>${user.passRate}%</td>
               <td>${user.averageScore === null ? "N/A" : `${user.averageScore}%`}</td>
               <td>${escapeHtml((user.completedCourses || []).join(", ") || "None")}</td>
+              <td><button class="ghost-button" type="button" data-player-history="${escapeHtml(user.discordId)}">View</button></td>
             </tr>
           `,
         )
         .join("")
-    : `<tr><td colspan="6">No player progress has been saved yet.</td></tr>`;
+    : `<tr><td colspan="7">No player progress has been saved yet.</td></tr>`;
+
+  statsUserBody.querySelectorAll("[data-player-history]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const user = (stats.users || []).find((item) => item.discordId === button.dataset.playerHistory);
+      renderPlayerHistory(user);
+    });
+  });
 
   statsPracticalBody.innerHTML = stats.practicalAssessments?.length
     ? stats.practicalAssessments
@@ -1631,6 +1693,7 @@ managerForm.addEventListener("submit", async (event) => {
       published: managerForm.elements.published.checked,
       imageUrl: uploadedTrainingImage || managerForm.elements.imageUrl.value,
       resourceUrl: managerForm.elements.resourceUrl.value,
+      theoryFmsTrainingGroupIds: parseNumberList(managerForm.elements.theoryFmsTrainingGroupIds.value),
       fmsTrainingGroupIds: parseNumberList(managerForm.elements.fmsTrainingGroupIds.value),
       fmsTrainingNote: managerForm.elements.fmsTrainingNote.value,
       fmsTrainingExpiryDate: managerForm.elements.fmsTrainingExpiryDate.value,
