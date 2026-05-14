@@ -327,7 +327,7 @@ async function writeFileStore(data) {
   await fs.writeFile(DATA_FILE, JSON.stringify(data, null, 2));
 }
 
-async function getProgress(user) {
+async function getStoredProgress(user) {
   if (pool) {
     await ensureDatabase();
     const result = await pool.query("select progress from training_progress where discord_id = $1", [
@@ -338,6 +338,18 @@ async function getProgress(user) {
 
   const data = await readFileStore();
   return data[user.id]?.progress || {};
+}
+
+async function getProgress(user) {
+  const progress = await getStoredProgress(user);
+  const courses = await getCourses();
+  const mergedProgress = await importFmsTrainingProgress(user, progress, courses);
+
+  if (mergedProgress !== progress) {
+    await saveProgress(user, mergedProgress);
+  }
+
+  return mergedProgress;
 }
 
 async function sendDiscordDm(discordId, message) {
@@ -452,6 +464,110 @@ async function addTheoryFmsTrainingGroups(user, course) {
     `Theory passed for ${course.title}; awaiting in-game practical.`,
     "theory/awaiting practical group(s)",
   );
+}
+
+function hasAllTrainingGroups(existingIds, requiredIds) {
+  requiredIds = parseNumericIds(requiredIds);
+  return requiredIds.length > 0 && requiredIds.every((groupId) => existingIds.has(groupId));
+}
+
+function createImportedCompletion(course, existingProgress, importedAt) {
+  const readModules = Array.isArray(course.modules) ? course.modules.map((_, index) => index) : [];
+  return {
+    started: true,
+    readModules,
+    quizScore: existingProgress?.quizScore ?? null,
+    theoryPassed: true,
+    theoryPassedAt: existingProgress?.theoryPassedAt || importedAt,
+    practicalStatus: course.practicalRequired ? "passed" : existingProgress?.practicalStatus || "",
+    practicalAssessedAt: course.practicalRequired
+      ? existingProgress?.practicalAssessedAt || importedAt
+      : existingProgress?.practicalAssessedAt || "",
+    practicalAssessedBy: course.practicalRequired
+      ? existingProgress?.practicalAssessedBy || "Imported from FMS"
+      : existingProgress?.practicalAssessedBy || "",
+    passed: true,
+    completedAt: existingProgress?.completedAt || importedAt,
+    feedback: existingProgress?.feedback || null,
+    fmsTrainingSync: existingProgress?.fmsTrainingSync || {
+      ok: true,
+      skipped: true,
+      imported: true,
+      message: "Existing FMS training group detected.",
+      groupIds: parseNumericIds(course.fmsTrainingGroupIds),
+      syncedAt: new Date().toISOString(),
+    },
+  };
+}
+
+function createImportedTheoryPass(course, existingProgress, importedAt) {
+  const readModules = Array.isArray(course.modules) ? course.modules.map((_, index) => index) : [];
+  return {
+    started: true,
+    readModules,
+    quizScore: existingProgress?.quizScore ?? null,
+    theoryPassed: true,
+    theoryPassedAt: existingProgress?.theoryPassedAt || importedAt,
+    practicalStatus: course.practicalRequired ? "pending" : existingProgress?.practicalStatus || "",
+    passed: false,
+    completedAt: null,
+    feedback: existingProgress?.feedback || null,
+    fmsTheorySync: existingProgress?.fmsTheorySync || {
+      ok: true,
+      skipped: true,
+      imported: true,
+      message: "Existing FMS theory training group detected.",
+      groupIds: parseNumericIds(course.theoryFmsTrainingGroupIds),
+      syncedAt: new Date().toISOString(),
+    },
+  };
+}
+
+async function importFmsTrainingProgress(user, progress, courses) {
+  if (!FMS_API_BASE_URL || !FMS_API_TOKEN || !user?.id) return progress || {};
+
+  const coursesWithFmsGroups = courses.filter(
+    (course) => course.fmsTrainingGroupIds.length || course.theoryFmsTrainingGroupIds.length,
+  );
+  if (!coursesWithFmsGroups.length) return progress || {};
+
+  let lookup;
+  try {
+    lookup = await fmsRequest(`/training/groups/user?discordid=${encodeURIComponent(user.id)}`);
+  } catch (error) {
+    return progress || {};
+  }
+
+  const existingIds = new Set((lookup?.data || []).map((group) => Number(group.id)).filter(Number.isFinite));
+  if (!existingIds.size) return progress || {};
+
+  let changed = false;
+  const importedAt = new Date().toLocaleString("en-GB", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+  const nextProgress = JSON.parse(JSON.stringify(progress || {}));
+
+  for (const course of coursesWithFmsGroups) {
+    const courseProgress = nextProgress[course.id] || {};
+
+    if (!courseProgress.passed && hasAllTrainingGroups(existingIds, course.fmsTrainingGroupIds)) {
+      nextProgress[course.id] = createImportedCompletion(course, courseProgress, importedAt);
+      changed = true;
+      continue;
+    }
+
+    if (
+      course.practicalRequired &&
+      !courseProgress.theoryPassed &&
+      hasAllTrainingGroups(existingIds, course.theoryFmsTrainingGroupIds)
+    ) {
+      nextProgress[course.id] = createImportedTheoryPass(course, courseProgress, importedAt);
+      changed = true;
+    }
+  }
+
+  return changed ? nextProgress : progress || {};
 }
 
 async function syncNewFmsCompletions(user, oldProgress, nextProgress, courses) {
