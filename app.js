@@ -218,6 +218,14 @@ function getVisibleCourses() {
   return courses.filter((course) => (course.published !== false || canManageTrainings()) && courseMatchesSearch(course));
 }
 
+function sortCoursesAlphabetically(items) {
+  return [...items].sort((a, b) => {
+    const titleCompare = String(a.title || "").localeCompare(String(b.title || ""), "en-GB", { sensitivity: "base" });
+    if (titleCompare !== 0) return titleCompare;
+    return String(a.division || "").localeCompare(String(b.division || ""), "en-GB", { sensitivity: "base" });
+  });
+}
+
 function expandSearchMatches() {
   const query = courseSearchTerm.trim();
   if (!query) return;
@@ -731,6 +739,12 @@ function renderManagement() {
   ]
     .concat(
       courses
+        .slice()
+        .sort((a, b) => {
+          const serviceCompare = String(a.service || "").localeCompare(String(b.service || ""), "en-GB", { sensitivity: "base" });
+          if (serviceCompare !== 0) return serviceCompare;
+          return String(a.title || "").localeCompare(String(b.title || ""), "en-GB", { sensitivity: "base" });
+        })
         .map(
           (course) =>
             `<option value="${escapeHtml(course.id)}" ${
@@ -887,7 +901,7 @@ function renderCourseList() {
   const visibleCourses = getVisibleCourses();
   courseList.innerHTML = serviceSections
     .map((service) => {
-      const serviceCourses = visibleCourses.filter((course) => course.service === service);
+      const serviceCourses = sortCoursesAlphabetically(visibleCourses.filter((course) => course.service === service));
       return `
         <section class="service-group">
           <button class="service-button ${
