@@ -97,12 +97,17 @@ const sidebarAnalyticsButton = document.getElementById("sidebarAnalyticsButton")
 const analyticsPanel = document.getElementById("analyticsPanel");
 const editorPanel = document.getElementById("editorPanel");
 const refreshStatsButton = document.getElementById("refreshStatsButton");
+const exportStatsButton = document.getElementById("exportStatsButton");
 const statsSummary = document.getElementById("statsSummary");
 const statsCourseBody = document.getElementById("statsCourseBody");
 const statsUserBody = document.getElementById("statsUserBody");
 const statsPracticalBody = document.getElementById("statsPracticalBody");
 const statsFeedbackBody = document.getElementById("statsFeedbackBody");
+const auditLogBody = document.getElementById("auditLogBody");
 const playerHistoryPanel = document.getElementById("playerHistoryPanel");
+const exportTrainingsButton = document.getElementById("exportTrainingsButton");
+const importTrainingsButton = document.getElementById("importTrainingsButton");
+const importTrainingsFile = document.getElementById("importTrainingsFile");
 
 function applyTheme() {
   document.body.classList.toggle("dark-theme", currentTheme === "dark");
@@ -154,6 +159,20 @@ function canManageTrainings() {
 
 function canDeleteTrainings() {
   return Boolean(currentAccess?.leadership);
+}
+
+function canManageService(service) {
+  if (!canManageTrainings()) return false;
+  if (!Array.isArray(currentAccess?.managedServices)) return true;
+  return currentAccess.managedServices.includes(service);
+}
+
+function getManagerServices() {
+  return serviceSections.filter((service) => canManageService(service));
+}
+
+function getManagerCourses() {
+  return courses.filter((course) => canManageService(course.service));
 }
 
 function escapeHtml(value) {
@@ -421,7 +440,8 @@ function createBlankTraining() {
 
 function getManagerCourse() {
   if (selectedManagerCourseId === "__new__") return null;
-  return courses.find((course) => course.id === selectedManagerCourseId) || null;
+  const course = courses.find((item) => item.id === selectedManagerCourseId) || null;
+  return course && canManageService(course.service) ? course : null;
 }
 
 function renderMedia(imageUrl, resourceUrl) {
@@ -728,16 +748,18 @@ function renderManagement() {
     : adminView === "analytics"
       ? "Command analytics"
       : "Command add/edit rights";
-  deleteTrainingButton.hidden = !canDeleteTrainings() || !courses.length || selectedManagerCourseId === "__new__";
+  const managerServices = getManagerServices();
+  const managerCourses = getManagerCourses();
+  deleteTrainingButton.hidden = !canDeleteTrainings() || !managerCourses.length || selectedManagerCourseId === "__new__";
 
   managerService.innerHTML = [`<option value="">Choose a service section</option>`]
-    .concat(serviceSections
+    .concat(managerServices
     .map((service) => `<option value="${escapeHtml(service)}">${escapeHtml(service)}</option>`)
     ).join("");
 
   if (
     selectedManagerCourseId !== "__new__" &&
-    (!selectedManagerCourseId || !courses.some((course) => course.id === selectedManagerCourseId))
+    (!selectedManagerCourseId || !managerCourses.some((course) => course.id === selectedManagerCourseId))
   ) {
     selectedManagerCourseId = "__new__";
   }
@@ -746,7 +768,7 @@ function renderManagement() {
     `<option value="__new__" ${selectedManagerCourseId === "__new__" ? "selected" : ""}>Create a new training</option>`,
   ]
     .concat(
-      courses
+      managerCourses
         .slice()
         .sort((a, b) => {
           const serviceCompare = String(a.service || "").localeCompare(String(b.service || ""), "en-GB", { sensitivity: "base" });
@@ -763,6 +785,10 @@ function renderManagement() {
     .join("");
 
   fillManagerForm(getManagerCourse());
+  managerForm.querySelector("[type='submit']").disabled = !managerServices.length;
+  if (!managerServices.length) {
+    managerResult.textContent = "No service sections are assigned to your Command role.";
+  }
   if (adminView === "analytics" && !statsLoaded) loadStats();
 }
 
@@ -772,6 +798,7 @@ function renderEmptyStats(message) {
   statsUserBody.innerHTML = `<tr><td colspan="7">${escapeHtml(message)}</td></tr>`;
   statsPracticalBody.innerHTML = `<tr><td colspan="6">${escapeHtml(message)}</td></tr>`;
   statsFeedbackBody.innerHTML = `<tr><td colspan="6">${escapeHtml(message)}</td></tr>`;
+  auditLogBody.innerHTML = `<tr><td colspan="6">${escapeHtml(message)}</td></tr>`;
   playerHistoryPanel.hidden = true;
 }
 
@@ -909,6 +936,30 @@ function renderStats(stats) {
 
 }
 
+function renderAuditLog(entries) {
+  auditLogBody.innerHTML = entries?.length
+    ? entries
+        .map((entry) => {
+          const details = entry.details && Object.keys(entry.details).length
+            ? Object.entries(entry.details)
+                .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(", ") : value}`)
+                .join("; ")
+            : "";
+          return `
+            <tr>
+              <td>${escapeHtml(new Date(entry.createdAt).toLocaleString("en-GB"))}</td>
+              <td>${escapeHtml(String(entry.action || "").replaceAll("_", " "))}</td>
+              <td>${escapeHtml(entry.actorName || "Unknown")}</td>
+              <td>${escapeHtml(entry.service || "General")}</td>
+              <td>${escapeHtml(entry.trainingTitle || "N/A")}</td>
+              <td>${escapeHtml(details || "Recorded")}</td>
+            </tr>
+          `;
+        })
+        .join("")
+    : `<tr><td colspan="6">No audit activity has been recorded yet.</td></tr>`;
+}
+
 async function updatePracticalAssessment(discordId, courseId, status) {
   if (!canManageTrainings()) return;
   const result = await api("/api/practical-assessments", {
@@ -916,6 +967,8 @@ async function updatePracticalAssessment(discordId, courseId, status) {
     body: JSON.stringify({ discordId, courseId, status }),
   });
   renderStats(result.stats);
+  const audit = await api("/api/audit-log");
+  renderAuditLog(audit.auditLog || []);
   statsLoaded = true;
 }
 
@@ -923,11 +976,15 @@ async function loadStats() {
   if (!canManageTrainings()) return;
   renderEmptyStats("Loading statistics...");
   try {
-    const result = await api("/api/stats");
+    const [result, audit] = await Promise.all([
+      api("/api/stats"),
+      api("/api/audit-log"),
+    ]);
     renderStats(result.stats);
+    renderAuditLog(audit.auditLog || []);
     statsLoaded = true;
   } catch (error) {
-    renderEmptyStats("Could not load statistics.");
+    renderEmptyStats(error.message || "Could not load statistics.");
   }
 }
 
@@ -944,6 +1001,77 @@ async function saveCoursesToServer() {
   if (selectedManagerCourseId !== "__new__" && !courses.some((course) => course.id === selectedManagerCourseId)) {
     selectedManagerCourseId = "__new__";
   }
+}
+
+function downloadFile(filename, contents, type = "application/json") {
+  const blob = new Blob([contents], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function csvCell(value) {
+  return `"${String(value ?? "").replaceAll('"', '""')}"`;
+}
+
+function exportStatsCsv() {
+  if (!latestStats) return;
+  const rows = [
+    ["Type", "Name", "Service", "Started", "Completed", "Pass Rate", "Average Score"],
+    ...(latestStats.courses || []).map((course) => [
+      "Training",
+      course.title,
+      course.service,
+      course.started,
+      course.completed,
+      `${course.passRate}%`,
+      course.averageScore === null ? "N/A" : `${course.averageScore}%`,
+    ]),
+    ...(latestStats.users || []).map((user) => [
+      "User",
+      user.username,
+      "",
+      user.started,
+      user.completed,
+      `${user.passRate}%`,
+      user.averageScore === null ? "N/A" : `${user.averageScore}%`,
+    ]),
+  ];
+  downloadFile(
+    `five999-training-analytics-${new Date().toISOString().slice(0, 10)}.csv`,
+    rows.map((row) => row.map(csvCell).join(",")).join("\n"),
+    "text/csv",
+  );
+}
+
+async function exportTrainings() {
+  const result = await api("/api/courses/export");
+  downloadFile(
+    `five999-trainings-${new Date().toISOString().slice(0, 10)}.json`,
+    JSON.stringify(result, null, 2),
+  );
+}
+
+async function importTrainingsFromFile(file) {
+  if (!file) return;
+  const payload = JSON.parse(await file.text());
+  const importedCourses = Array.isArray(payload) ? payload : payload.courses;
+  const result = await api("/api/courses/import", {
+    method: "POST",
+    body: JSON.stringify({ courses: importedCourses }),
+  });
+  courses = Array.isArray(result.courses)
+    ? removeOldExampleTrainings(result.courses).map(normalizeCourse)
+    : courses;
+  selectedManagerCourseId = "__new__";
+  managerResult.textContent = "Trainings imported.";
+  statsLoaded = false;
+  render();
 }
 
 function renderCourseList() {
@@ -1619,6 +1747,34 @@ refreshStatsButton.addEventListener("click", () => {
   loadStats();
 });
 
+exportStatsButton.addEventListener("click", () => {
+  exportStatsCsv();
+});
+
+exportTrainingsButton.addEventListener("click", async () => {
+  if (!canManageTrainings()) return;
+  try {
+    await exportTrainings();
+  } catch (error) {
+    managerResult.textContent = error.message || "Training export failed.";
+  }
+});
+
+importTrainingsButton.addEventListener("click", () => {
+  if (!canManageTrainings()) return;
+  importTrainingsFile.click();
+});
+
+importTrainingsFile.addEventListener("change", async () => {
+  try {
+    await importTrainingsFromFile(importTrainingsFile.files[0]);
+  } catch (error) {
+    managerResult.textContent = error.message || "Training import failed.";
+  } finally {
+    importTrainingsFile.value = "";
+  }
+});
+
 statsUserBody.addEventListener("click", (event) => {
   const button = event.target.closest("[data-player-history]");
   if (!button) return;
@@ -1696,6 +1852,7 @@ managerForm.addEventListener("submit", async (event) => {
     const quizEnabled = managerForm.elements.quizEnabled.checked;
     const practicalRequired = managerForm.elements.practicalRequired.checked;
     const uploadedTrainingImage = await readImageFile(managerForm.elements.imageUpload.files[0]);
+    const service = managerForm.elements.service.value;
 
     if (!modules.length || (quizEnabled && !quiz.length)) {
       managerResult.textContent = quizEnabled
@@ -1704,11 +1861,16 @@ managerForm.addEventListener("submit", async (event) => {
       return;
     }
 
+    if (!canManageService(service)) {
+      managerResult.textContent = "Your Command role cannot create or edit trainings for that service.";
+      return;
+    }
+
     const existing = getManagerCourse();
     const draft = createBlankTraining();
     const nextCourse = {
       id: existing?.id || draft.id,
-      service: managerForm.elements.service.value,
+      service,
       division: managerForm.elements.division.value,
       title: managerForm.elements.title.value,
       tag: managerForm.elements.tag.value,

@@ -22,6 +22,9 @@ A Render-hosted training dashboard for Five999 players to sign in with Discord, 
 - Separate role-locked Create/Edit/Delete area, no JSON editing required
 - Draft/published toggle so Command can prepare trainings before players see them
 - Role-locked admin analytics for Command and Leadership teams
+- Optional service-specific Command permissions by Discord role
+- Audit log for training edits, imports, exports, and practical assessments
+- Bulk training import/export plus analytics CSV export
 - Clickable player profiles in analytics with full training history
 - Training feedback table in Command analytics
 - Optional image URLs and resource URLs for trainings and modules
@@ -61,6 +64,7 @@ Set these in Render:
 - `DISCORD_BOT_TOKEN`
 - `COMMAND_ROLE_IDS`
 - `LEADERSHIP_ROLE_IDS`
+- `SERVICE_COMMAND_ROLE_MAP`
 - `DISCORD_DM_NOTIFICATIONS`
 - `FMS_API_BASE_URL`
 - `FMS_API_TOKEN`
@@ -70,6 +74,21 @@ Set these in Render:
 `SESSION_SECRET` can be any long random secret. `DATABASE_URL` should come from a Render PostgreSQL database if you want progress to persist reliably.
 
 `COMMAND_ROLE_IDS` and `LEADERSHIP_ROLE_IDS` are comma-separated Discord role IDs. Leadership users automatically get Command permissions too. The bot token is used to read signed-in member roles and send optional DMs, so the bot must be in the Five999 Discord server.
+
+`SERVICE_COMMAND_ROLE_MAP` is optional. Leave it blank if all Command roles can manage all services. To limit Command members to specific services, set it as JSON where each Discord role ID maps to one or more service names:
+
+```json
+{
+  "123456789012345678": ["United Kingdom Police Service"],
+  "234567890123456789": ["United Kingdom Ambulance Service", "Emergency Operations Centre"]
+}
+```
+
+You can also use a compact Render-friendly format:
+
+```text
+123456789012345678=United Kingdom Police Service;234567890123456789=United Kingdom Ambulance Service|Emergency Operations Centre
+```
 
 For local testing without `DATABASE_URL`, progress is saved to `data/progress.json`.
 

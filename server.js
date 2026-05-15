@@ -11,6 +11,7 @@ const STATE_COOKIE = "five999_oauth_state";
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 14;
 const DATA_FILE = path.join(__dirname, "data", "progress.json");
 const COURSES_FILE = path.join(__dirname, "data", "courses.json");
+const AUDIT_FILE = path.join(__dirname, "data", "audit-log.json");
 
 const {
   DISCORD_CLIENT_ID,
@@ -20,6 +21,7 @@ const {
   DISCORD_BOT_TOKEN,
   COMMAND_ROLE_IDS = "",
   LEADERSHIP_ROLE_IDS = "",
+  SERVICE_COMMAND_ROLE_MAP = "",
   DISCORD_DM_NOTIFICATIONS = "false",
   FMS_API_BASE_URL = "",
   FMS_API_TOKEN = "",
@@ -149,6 +151,19 @@ async function ensureDatabase() {
       updated_at timestamptz not null default now()
     )
   `);
+  await pool.query(`
+    create table if not exists training_audit_log (
+      id bigserial primary key,
+      actor_discord_id text not null,
+      actor_name text not null,
+      action text not null,
+      service text,
+      training_id text,
+      training_title text,
+      details jsonb not null default '{}'::jsonb,
+      created_at timestamptz not null default now()
+    )
+  `);
   databaseReady = true;
 }
 
@@ -161,6 +176,41 @@ function parseRoleIds(value) {
 
 function hasAnyRole(memberRoleIds, allowedRoleIds) {
   return allowedRoleIds.some((roleId) => memberRoleIds.includes(roleId));
+}
+
+function parseServiceRoleMap(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return new Map();
+
+  try {
+    const parsed = JSON.parse(raw);
+    return new Map(
+      Object.entries(parsed).map(([roleId, services]) => [
+        String(roleId).trim(),
+        (Array.isArray(services) ? services : String(services).split("|"))
+          .map((service) => String(service).trim())
+          .filter(Boolean),
+      ]),
+    );
+  } catch {
+    return new Map(
+      raw
+        .split(";")
+        .map((entry) => entry.trim())
+        .filter(Boolean)
+        .map((entry) => {
+          const [roleId, services = ""] = entry.split("=");
+          return [
+            String(roleId || "").trim(),
+            services
+              .split("|")
+              .map((service) => service.trim())
+              .filter(Boolean),
+          ];
+        })
+        .filter(([roleId, services]) => roleId && services.length),
+    );
+  }
 }
 
 function sanitizeUrl(value) {
@@ -213,13 +263,21 @@ async function getAccess(user) {
   const roles = await getDiscordRoleIds(user.id);
   const commandRoles = parseRoleIds(COMMAND_ROLE_IDS);
   const leadershipRoles = parseRoleIds(LEADERSHIP_ROLE_IDS);
+  const serviceRoleMap = parseServiceRoleMap(SERVICE_COMMAND_ROLE_MAP);
+  const mappedServices = [
+    ...new Set(
+      roles.flatMap((roleId) => serviceRoleMap.get(roleId) || []),
+    ),
+  ];
+  const serviceRoleMapConfigured = serviceRoleMap.size > 0;
   const isLeadership = hasAnyRole(roles, leadershipRoles);
-  const isCommand = isLeadership || hasAnyRole(roles, commandRoles);
+  const isCommand = isLeadership || (serviceRoleMapConfigured ? mappedServices.length > 0 : hasAnyRole(roles, commandRoles));
 
   return {
     roles,
     command: isCommand,
     leadership: isLeadership,
+    managedServices: isLeadership || !serviceRoleMapConfigured ? null : mappedServices,
     roleChecksConfigured: Boolean(DISCORD_GUILD_ID && DISCORD_BOT_TOKEN),
   };
 }
@@ -325,6 +383,98 @@ async function readFileStore() {
 async function writeFileStore(data) {
   await fs.mkdir(path.dirname(DATA_FILE), { recursive: true });
   await fs.writeFile(DATA_FILE, JSON.stringify(data, null, 2));
+}
+
+async function readAuditFileStore() {
+  try {
+    return JSON.parse(await fs.readFile(AUDIT_FILE, "utf8"));
+  } catch {
+    return [];
+  }
+}
+
+async function writeAuditFileStore(data) {
+  await fs.mkdir(path.dirname(AUDIT_FILE), { recursive: true });
+  await fs.writeFile(AUDIT_FILE, JSON.stringify(data.slice(-500), null, 2));
+}
+
+function canManageService(access, service) {
+  if (access.leadership) return true;
+  if (!access.command) return false;
+  if (!Array.isArray(access.managedServices)) return true;
+  return access.managedServices.includes(service);
+}
+
+function getManageableCourses(access, courses) {
+  return courses.filter((course) => canManageService(access, course.service));
+}
+
+async function writeAuditLog(user, action, course = {}, details = {}) {
+  const entry = {
+    actorDiscordId: user.id,
+    actorName: user.globalName || user.username,
+    action,
+    service: course.service || "",
+    trainingId: course.id || "",
+    trainingTitle: course.title || "",
+    details,
+    createdAt: new Date().toISOString(),
+  };
+
+  if (pool) {
+    await ensureDatabase();
+    await pool.query(
+      `
+        insert into training_audit_log
+          (actor_discord_id, actor_name, action, service, training_id, training_title, details)
+        values ($1, $2, $3, $4, $5, $6, $7)
+      `,
+      [
+        entry.actorDiscordId,
+        entry.actorName,
+        entry.action,
+        entry.service,
+        entry.trainingId,
+        entry.trainingTitle,
+        JSON.stringify(entry.details || {}),
+      ],
+    );
+    return entry;
+  }
+
+  const audit = await readAuditFileStore();
+  audit.push(entry);
+  await writeAuditFileStore(audit);
+  return entry;
+}
+
+async function getAuditLog(access) {
+  let rows;
+  if (pool) {
+    await ensureDatabase();
+    const result = await pool.query(
+      `
+        select actor_discord_id, actor_name, action, service, training_id, training_title, details, created_at
+        from training_audit_log
+        order by created_at desc
+        limit 200
+      `,
+    );
+    rows = result.rows.map((row) => ({
+      actorDiscordId: row.actor_discord_id,
+      actorName: row.actor_name,
+      action: row.action,
+      service: row.service || "",
+      trainingId: row.training_id || "",
+      trainingTitle: row.training_title || "",
+      details: row.details || {},
+      createdAt: row.created_at,
+    }));
+  } else {
+    rows = (await readAuditFileStore()).slice(-200).reverse();
+  }
+
+  return rows.filter((entry) => !entry.service || canManageService(access, entry.service));
 }
 
 async function getStoredProgress(user) {
@@ -816,6 +966,55 @@ function protectPracticalProgress(oldProgress, nextProgress, courses) {
   return nextProgress;
 }
 
+async function updateCoursesForUser(user, access, rawCourses, auditAction = "training_save") {
+  const currentCourses = await getCourses();
+  let incomingCourses = sanitizeCourses(rawCourses || []);
+  const currentById = new Map(currentCourses.map((course) => [course.id, course]));
+  const incomingById = new Map(incomingCourses.map((course) => [course.id, course]));
+
+  if (!access.leadership) {
+    const allowedIncomingCourses = [];
+    for (const course of incomingCourses) {
+      const existing = currentById.get(course.id);
+      if (existing && !canManageService(access, existing.service)) continue;
+      if (!canManageService(access, course.service)) {
+        const service = course.service || "this service";
+        const error = new Error(`You can only manage trainings in your assigned service sections. ${service} is not assigned to you.`);
+        error.status = 403;
+        throw error;
+      }
+      allowedIncomingCourses.push(course);
+    }
+
+    const allowedIds = new Set(allowedIncomingCourses.map((course) => course.id));
+    const preservedCourses = currentCourses.filter((course) => !allowedIds.has(course.id));
+    incomingCourses = [...allowedIncomingCourses, ...preservedCourses];
+  }
+
+  const savedCourses = await saveCourses(incomingCourses);
+  const savedById = new Map(savedCourses.map((course) => [course.id, course]));
+
+  for (const course of savedCourses) {
+    const current = currentById.get(course.id);
+    if (!incomingById.has(course.id)) continue;
+    if (!current) {
+      await writeAuditLog(user, `${auditAction}_created`, course, { title: course.title });
+    } else if (JSON.stringify(current) !== JSON.stringify(course)) {
+      await writeAuditLog(user, `${auditAction}_updated`, course, { title: course.title });
+    }
+  }
+
+  if (access.leadership) {
+    for (const current of currentCourses) {
+      if (!savedById.has(current.id)) {
+        await writeAuditLog(user, `${auditAction}_deleted`, current, { title: current.title });
+      }
+    }
+  }
+
+  return savedCourses;
+}
+
 async function saveProgress(user, progress) {
   if (pool) {
     await ensureDatabase();
@@ -894,8 +1093,13 @@ app.get("/api/courses", async (req, res, next) => {
     const user = verifySession(parseCookies(req)[SESSION_COOKIE]);
     const access = user ? await getAccess(user) : null;
     const courses = await getCourses();
+    const visibleCourses = access?.leadership
+      ? courses
+      : access?.command
+        ? courses.filter((course) => course.published !== false || canManageService(access, course.service))
+        : courses.filter((course) => course.published !== false);
     res.json({
-      courses: access?.command ? courses : courses.filter((course) => course.published !== false),
+      courses: visibleCourses,
     });
   } catch (error) {
     next(error);
@@ -910,16 +1114,52 @@ app.put("/api/courses", requireUser, async (req, res, next) => {
       return;
     }
 
-    const currentCourses = await getCourses();
-    let incomingCourses = sanitizeCourses(req.body.courses || []);
+    res.json({ courses: await updateCoursesForUser(req.user, access, req.body.courses || []) });
+  } catch (error) {
+    next(error);
+  }
+});
 
-    if (!access.leadership) {
-      const incomingIds = new Set(incomingCourses.map((course) => course.id));
-      const preservedCourses = currentCourses.filter((course) => !incomingIds.has(course.id));
-      incomingCourses = [...incomingCourses, ...preservedCourses];
+app.get("/api/courses/export", requireUser, async (req, res, next) => {
+  try {
+    const access = await getAccess(req.user);
+    if (!access.command) {
+      res.status(403).json({ error: "Command or Leadership role required." });
+      return;
     }
 
-    res.json({ courses: await saveCourses(incomingCourses) });
+    const courses = await getCourses();
+    const exportedCourses = access.leadership ? courses : getManageableCourses(access, courses);
+    await writeAuditLog(req.user, "training_export", {}, { count: exportedCourses.length });
+    res.json({ courses: exportedCourses, exportedAt: new Date().toISOString() });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/courses/import", requireUser, async (req, res, next) => {
+  try {
+    const access = await getAccess(req.user);
+    if (!access.command) {
+      res.status(403).json({ error: "Command or Leadership role required." });
+      return;
+    }
+
+    const courses = Array.isArray(req.body?.courses) ? req.body.courses : [];
+    if (!courses.length) {
+      res.status(400).json({ error: "Import file did not contain any trainings." });
+      return;
+    }
+
+    const currentCourses = await getCourses();
+    const importedIds = new Set(sanitizeCourses(courses).map((course) => course.id));
+    const mergedCourses = [
+      ...currentCourses.filter((course) => !importedIds.has(course.id)),
+      ...courses,
+    ];
+    const savedCourses = await updateCoursesForUser(req.user, access, mergedCourses, "training_import");
+    await writeAuditLog(req.user, "training_import_completed", {}, { count: courses.length });
+    res.json({ courses: savedCourses });
   } catch (error) {
     next(error);
   }
@@ -933,7 +1173,22 @@ app.get("/api/stats", requireUser, async (req, res, next) => {
       return;
     }
 
-    res.json({ stats: buildStats(await getCourses(), await getAllProgressRows()) });
+    const courses = await getCourses();
+    res.json({ stats: buildStats(access.leadership ? courses : getManageableCourses(access, courses), await getAllProgressRows()) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/api/audit-log", requireUser, async (req, res, next) => {
+  try {
+    const access = await getAccess(req.user);
+    if (!access.command) {
+      res.status(403).json({ error: "Command or Leadership role required." });
+      return;
+    }
+
+    res.json({ auditLog: await getAuditLog(access) });
   } catch (error) {
     next(error);
   }
@@ -957,6 +1212,10 @@ app.post("/api/practical-assessments", requireUser, async (req, res, next) => {
     const course = courses.find((item) => item.id === courseId && item.practicalRequired);
     if (!course) {
       res.status(404).json({ error: "Practical training course not found." });
+      return;
+    }
+    if (!canManageService(access, course.service)) {
+      res.status(403).json({ error: "Your Command role cannot assess practicals for this service." });
       return;
     }
 
@@ -986,6 +1245,11 @@ app.post("/api/practical-assessments", requireUser, async (req, res, next) => {
       courseProgress.completedAt = null;
     }
 
+    await writeAuditLog(req.user, `practical_${status}`, course, {
+      playerDiscordId: discordId,
+      playerName: row.username || "Unknown user",
+    });
+
     await syncNewFmsCompletions(
       { id: discordId, username: row.username, globalName: row.username },
       oldProgress,
@@ -1000,7 +1264,7 @@ app.post("/api/practical-assessments", requireUser, async (req, res, next) => {
       courses,
     ).catch(console.error);
 
-    res.json({ ok: true, stats: buildStats(courses, await getAllProgressRows()) });
+    res.json({ ok: true, stats: buildStats(access.leadership ? courses : getManageableCourses(access, courses), await getAllProgressRows()) });
   } catch (error) {
     next(error);
   }
@@ -1106,6 +1370,10 @@ app.use((error, req, res, next) => {
   console.error(error);
   if (error.type === "entity.too.large") {
     res.status(413).json({ error: "The training is too large to save. Try using smaller images." });
+    return;
+  }
+  if (error.status) {
+    res.status(error.status).json({ error: error.message || "Request failed." });
     return;
   }
   res.status(500).json({ error: "Something went wrong." });

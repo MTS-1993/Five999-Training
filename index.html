@@ -10,7 +10,7 @@
       href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Inter:wght@500;600;700;800;900&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css?v=20260514-4" />
+    <link rel="stylesheet" href="styles.css?v=20260515-1" />
   </head>
   <body>
     <div class="app-shell">
@@ -18,7 +18,7 @@
         <div class="brand">
           <img
             class="brand-logo"
-            src="assets/five999-training-logo.png?v=20260514-4"
+            src="assets/five999-training-logo.png?v=20260515-1"
             alt="Five999 Training"
           />
         </div>
@@ -247,7 +247,10 @@
                 <h2>Training Statistics</h2>
                 <p class="section-subtitle">Completion rates, pass performance, and player feedback.</p>
               </div>
-              <button class="ghost-button" id="refreshStatsButton" type="button">Refresh Stats</button>
+              <div class="manager-actions">
+                <button class="ghost-button" id="exportStatsButton" type="button">Export CSV</button>
+                <button class="ghost-button" id="refreshStatsButton" type="button">Refresh Stats</button>
+              </div>
             </div>
             <div class="stats-grid" id="statsSummary"></div>
             <div class="analytics-table-wrap">
@@ -316,12 +319,33 @@
                 <tbody id="statsFeedbackBody"></tbody>
               </table>
             </div>
+            <div class="analytics-table-wrap">
+              <h3>Audit Log</h3>
+              <table class="analytics-table">
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>Action</th>
+                    <th>User</th>
+                    <th>Service</th>
+                    <th>Training</th>
+                    <th>Details</th>
+                  </tr>
+                </thead>
+                <tbody id="auditLogBody"></tbody>
+              </table>
+            </div>
           </section>
 
           <div class="manager-layout" id="editorPanel">
             <div class="manager-side-panel">
               <p class="eyebrow">Editor Control</p>
               <button class="primary-button" id="newTrainingButton" type="button">Create New Training</button>
+              <div class="manager-actions">
+                <button class="ghost-button" id="exportTrainingsButton" type="button">Export Trainings</button>
+                <button class="ghost-button" id="importTrainingsButton" type="button">Import Trainings</button>
+                <input id="importTrainingsFile" type="file" accept="application/json,.json" hidden />
+              </div>
               <label class="field-label" for="managerCourseSelect">Edit existing training</label>
               <select id="managerCourseSelect"></select>
               <div class="manager-actions">
@@ -443,6 +467,6 @@
       </main>
     </div>
 
-    <script src="app.js?v=20260514-4"></script>
+    <script src="app.js?v=20260515-1"></script>
   </body>
 </html>
