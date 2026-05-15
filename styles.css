@@ -2464,3 +2464,418 @@ canvas {
     min-height: 146px;
   }
 }
+
+/* Five999 identity refresh */
+:root {
+  --bg: #e8eef2;
+  --surface: #fbfcfd;
+  --surface-2: #f1f5f7;
+  --ink: #07131f;
+  --muted: #526775;
+  --line: #cdd9e1;
+  --red: #d51d2a;
+  --navy: #061927;
+  --blue: #005bbb;
+  --teal: #007f70;
+  --amber: #d99116;
+  --green: #11845f;
+  --shadow: 0 18px 38px rgba(7, 19, 31, 0.1);
+}
+
+body {
+  background:
+    linear-gradient(90deg, rgba(6, 25, 39, 0.05) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(6, 25, 39, 0.04) 1px, transparent 1px),
+    linear-gradient(135deg, #eef4f7 0%, #e6eef2 48%, #f4f7f9 100%);
+  background-size: 44px 44px, 44px 44px, auto;
+  color: var(--ink);
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+body.dark-theme {
+  --bg: #06111c;
+  --surface: #0d2231;
+  --surface-2: #112d40;
+  --ink: #f7fafc;
+  --muted: #b7c8d4;
+  --line: #2a4b62;
+  --shadow: 0 18px 42px rgba(0, 0, 0, 0.34);
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(135deg, #06111c 0%, #081d2d 56%, #101022 100%);
+  background-size: 44px 44px, 44px 44px, auto;
+}
+
+h1,
+h2,
+h3,
+.service-button span,
+.course-button strong,
+.primary-button,
+.ghost-button,
+.account-chip,
+.score-pill,
+.field-label {
+  font-family: "Barlow", "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+h1 {
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+h2,
+h3 {
+  font-weight: 850;
+}
+
+.app-shell {
+  grid-template-columns: 320px minmax(0, 1fr);
+}
+
+.sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  background:
+    linear-gradient(180deg, rgba(213, 29, 42, 0.18), transparent 18%),
+    linear-gradient(135deg, #05131f, #082238 58%, #0d1826);
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.06);
+}
+
+.brand {
+  padding: 8px 0 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.brand-logo {
+  max-width: 150px;
+  filter: drop-shadow(0 14px 24px rgba(0, 0, 0, 0.28));
+}
+
+.sidebar-section-label,
+.admin-sidebar-panel p,
+.eyebrow {
+  letter-spacing: 0.12em;
+}
+
+.sidebar-search input {
+  min-height: 46px;
+  border-color: rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.075);
+  box-shadow: inset 3px 0 0 rgba(213, 29, 42, 0.82);
+}
+
+.service-button {
+  min-height: 52px;
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.055);
+  box-shadow: inset 3px 0 0 rgba(255, 255, 255, 0.12);
+}
+
+.service-button.active,
+.service-button:hover {
+  background: rgba(255, 255, 255, 0.13);
+  box-shadow:
+    inset 3px 0 0 var(--red),
+    0 10px 24px rgba(0, 0, 0, 0.18);
+}
+
+.service-toggle {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.service-button small,
+.progress-badge {
+  border-radius: 6px;
+}
+
+.course-button {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 3px 0 0 rgba(0, 91, 187, 0.45);
+}
+
+.course-button.active,
+.course-button:hover {
+  background: #ffffff;
+  color: var(--ink);
+  box-shadow:
+    inset 3px 0 0 var(--blue),
+    0 12px 26px rgba(0, 0, 0, 0.2);
+}
+
+.course-icon {
+  border-radius: 6px;
+  background:
+    linear-gradient(135deg, rgba(213, 29, 42, 0.16), rgba(0, 91, 187, 0.12)),
+    #ffffff;
+}
+
+.workspace {
+  width: min(1400px, 100%);
+  padding: 34px 42px 50px;
+}
+
+.topbar {
+  padding-bottom: 24px;
+  border-bottom: 2px solid rgba(6, 25, 39, 0.08);
+}
+
+.topbar > div:first-child {
+  position: relative;
+  padding-left: 18px;
+}
+
+.topbar > div:first-child::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 4px;
+  width: 5px;
+  height: calc(100% - 8px);
+  border-radius: 99px;
+  background: linear-gradient(180deg, var(--red), var(--blue), var(--teal));
+}
+
+.topbar-subtitle {
+  max-width: 680px;
+}
+
+.account-chip,
+.account-warning,
+.ghost-button,
+.primary-button,
+.theme-icon-button {
+  border-radius: 6px;
+}
+
+.ghost-button {
+  border-color: #c6d4dd;
+  background: rgba(255, 255, 255, 0.74);
+}
+
+.primary-button {
+  border-color: #b81420;
+  background: linear-gradient(135deg, #d51d2a, #aa111d);
+  box-shadow: 0 12px 24px rgba(213, 29, 42, 0.2);
+}
+
+.landing-hero {
+  position: relative;
+  overflow: hidden;
+  min-height: 250px;
+  padding: 34px;
+  border: 1px solid #bdd1dd;
+  background:
+    linear-gradient(90deg, rgba(6, 25, 39, 0.95), rgba(8, 45, 67, 0.86)),
+    repeating-linear-gradient(120deg, #d51d2a 0 14px, #f7fafc 14px 24px, #005bbb 24px 38px, #007f70 38px 50px);
+  color: #ffffff;
+}
+
+.landing-hero::after {
+  content: "FIVE999";
+  position: absolute;
+  right: 22px;
+  bottom: -18px;
+  color: rgba(255, 255, 255, 0.045);
+  font-family: "Barlow", sans-serif;
+  font-size: clamp(4rem, 13vw, 9rem);
+  font-weight: 900;
+  line-height: 0.8;
+  pointer-events: none;
+}
+
+.landing-hero h2,
+.landing-hero p,
+.landing-hero .eyebrow {
+  position: relative;
+  z-index: 1;
+}
+
+.landing-hero h2 {
+  max-width: 760px;
+  text-transform: uppercase;
+}
+
+.landing-hero .eyebrow {
+  color: #ff4652;
+}
+
+.landing-hero p {
+  color: #dceaf2;
+}
+
+.landing-steps article,
+.auth-panel,
+.landing-note,
+.hero-panel,
+.course-start-panel,
+.profile-panel,
+.panel,
+.completion-panel,
+.management-panel,
+.manager-form,
+.analytics-panel,
+.builder-card,
+.certificate-library-card,
+.stat-card,
+.question,
+.feedback-form {
+  border-radius: 6px;
+  border-color: var(--line);
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 12px 30px rgba(7, 19, 31, 0.06);
+}
+
+.landing-steps article {
+  border-top: 4px solid var(--blue);
+}
+
+.landing-steps article:nth-child(2) {
+  border-top-color: var(--teal);
+}
+
+.landing-steps article:nth-child(3) {
+  border-top-color: var(--red);
+}
+
+.landing-steps article:nth-child(4) {
+  border-top-color: var(--amber);
+}
+
+.landing-steps span {
+  background: #061927;
+}
+
+.hero-panel {
+  overflow: hidden;
+  border-top: 4px solid var(--blue);
+}
+
+.hero-copy {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(247, 250, 252, 0.9));
+}
+
+.hero-art {
+  background:
+    linear-gradient(135deg, rgba(6, 25, 39, 0.9), rgba(6, 25, 39, 0.54)),
+    repeating-linear-gradient(120deg, #d51d2a 0 18px, #f7fafc 18px 30px, #005bbb 30px 48px, #007f70 48px 62px);
+}
+
+.progress-strip {
+  border-left: 5px solid var(--teal);
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.module-tab,
+.answer,
+input,
+select,
+textarea,
+.toggle-row {
+  border-radius: 6px;
+}
+
+.module-tab.active {
+  background: #061927;
+}
+
+.builder-heading {
+  border-left: 4px solid var(--blue);
+  background: #eef4f7;
+}
+
+.analytics-table {
+  border-radius: 6px;
+}
+
+.analytics-table th {
+  background: #061927;
+  color: #ffffff;
+}
+
+.management-panel {
+  border-top-color: var(--red);
+}
+
+.analytics-panel {
+  border-top: 4px solid var(--teal);
+}
+
+.completion-panel {
+  border-top-color: var(--green);
+}
+
+.dark-theme .topbar {
+  border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+.dark-theme .landing-steps article,
+.dark-theme .auth-panel,
+.dark-theme .landing-note,
+.dark-theme .hero-panel,
+.dark-theme .course-start-panel,
+.dark-theme .profile-panel,
+.dark-theme .panel,
+.dark-theme .completion-panel,
+.dark-theme .management-panel,
+.dark-theme .manager-form,
+.dark-theme .analytics-panel,
+.dark-theme .builder-card,
+.dark-theme .certificate-library-card,
+.dark-theme .stat-card,
+.dark-theme .question,
+.dark-theme .feedback-form,
+.dark-theme .hero-copy {
+  border-color: var(--line);
+  background: rgba(13, 34, 49, 0.92);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.28);
+}
+
+.dark-theme .progress-strip,
+.dark-theme .answer,
+.dark-theme .module-tab,
+.dark-theme .toggle-row,
+.dark-theme .analytics-detail-panel {
+  background: #112d40;
+}
+
+.dark-theme .hero-copy p:last-of-type,
+.dark-theme .landing-steps p,
+.dark-theme .topbar-subtitle,
+.dark-theme .section-subtitle,
+.dark-theme .field-hint,
+.dark-theme .muted {
+  color: #bfd0dc;
+}
+
+.dark-theme .analytics-table th {
+  background: #071827;
+  color: #ffffff;
+}
+
+@media (max-width: 900px) {
+  .sidebar {
+    position: static;
+    height: auto;
+  }
+
+  .workspace {
+    padding: 24px 18px 34px;
+  }
+}
+
+@media (max-width: 700px) {
+  .topbar > div:first-child {
+    padding-left: 14px;
+  }
+
+  .landing-hero {
+    min-height: 0;
+    padding: 24px 18px;
+  }
+}
