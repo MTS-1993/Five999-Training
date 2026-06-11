@@ -767,6 +767,92 @@ async function syncNewFmsTheoryPasses(user, oldProgress, nextProgress, courses) 
   }
 }
 
+async function resyncFmsTrainingGroupsForRow(row, courses) {
+  const nextProgress = JSON.parse(JSON.stringify(row?.progress || {}));
+  const playerUser = {
+    id: row.discordId,
+    username: row.username || "Unknown user",
+    globalName: row.username || "Unknown user",
+    avatar: row.avatar || null,
+  };
+  const result = {
+    added: 0,
+    skipped: 0,
+    failed: 0,
+    notConfigured: 0,
+    checked: 0,
+    details: [],
+  };
+
+  for (const course of courses) {
+    const courseProgress = nextProgress[course.id];
+    if (!courseProgress) continue;
+
+    const syncTargets = [];
+    if (courseProgress.theoryPassed && course.theoryFmsTrainingGroupIds.length) {
+      syncTargets.push({
+        key: "fmsTheorySync",
+        label: "theory",
+        run: () => addTheoryFmsTrainingGroups(playerUser, course),
+      });
+    }
+    if (courseProgress.passed && course.fmsTrainingGroupIds.length) {
+      syncTargets.push({
+        key: "fmsTrainingSync",
+        label: "completion",
+        run: () => addFinalFmsTrainingGroups(playerUser, course),
+      });
+    }
+
+    for (const target of syncTargets) {
+      result.checked += 1;
+      try {
+        const syncResult = await target.run();
+        if (!syncResult) {
+          result.notConfigured += 1;
+          result.details.push({
+            courseId: course.id,
+            courseTitle: course.title,
+            type: target.label,
+            status: "not_configured",
+          });
+          continue;
+        }
+
+        courseProgress[target.key] = syncResult;
+        if (syncResult.skipped) {
+          result.skipped += 1;
+        } else {
+          result.added += syncResult.groupIds?.length || 0;
+        }
+        result.details.push({
+          courseId: course.id,
+          courseTitle: course.title,
+          type: target.label,
+          status: syncResult.skipped ? "already_present" : "added",
+          groupIds: syncResult.groupIds || [],
+        });
+      } catch (error) {
+        result.failed += 1;
+        courseProgress[target.key] = {
+          ok: false,
+          message: error.message || "FMS training group re-sync failed.",
+          syncedAt: new Date().toISOString(),
+        };
+        result.details.push({
+          courseId: course.id,
+          courseTitle: course.title,
+          type: target.label,
+          status: "failed",
+          message: error.message || "FMS training group re-sync failed.",
+        });
+      }
+    }
+  }
+
+  return { progress: nextProgress, result };
+}
+
 async function notifyNewCompletions(user, oldProgress, nextProgress, courses) {
   const courseMap = new Map(courses.map((course) => [course.id, course]));
   const newlyCompleted = Object.entries(nextProgress || {}).filter(([courseId, item]) => {
@@ -1265,6 +1351,49 @@ app.post("/api/practical-assessments", requireUser, async (req, res, next) => {
     ).catch(console.error);
 
     res.json({ ok: true, stats: buildStats(access.leadership ? courses : getManageableCourses(access, courses), await getAllProgressRows()) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/fms-role-resync", requireUser, async (req, res, next) => {
+  try {
+    const access = await getAccess(req.user);
+    if (!access.leadership) {
+      res.status(403).json({ error: "Leadership role required." });
+      return;
+    }
+
+    const { discordId } = req.body || {};
+    if (!discordId) {
+      res.status(400).json({ error: "Discord ID is required." });
+      return;
+    }
+
+    const rows = await getAllProgressRows();
+    const row = rows.find((item) => item.discordId === discordId);
+    if (!row) {
+      res.status(404).json({ error: "Player progress was not found." });
+      return;
+    }
+
+    const courses = await getCourses();
+    const { progress: nextProgress, result } = await resyncFmsTrainingGroupsForRow(row, courses);
+    await saveProgressRow(row, nextProgress);
+    await writeAuditLog(req.user, "fms_role_resync", {}, {
+      playerDiscordId: row.discordId,
+      playerName: row.username || "Unknown user",
+      added: result.added,
+      skipped: result.skipped,
+      failed: result.failed,
+      checked: result.checked,
+    });
+
+    res.json({
+      ok: true,
+      result,
+      stats: buildStats(courses, await getAllProgressRows()),
+    });
   } catch (error) {
     next(error);
   }

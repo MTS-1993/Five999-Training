@@ -105,6 +105,7 @@ const statsPracticalBody = document.getElementById("statsPracticalBody");
 const statsFeedbackBody = document.getElementById("statsFeedbackBody");
 const auditLogBody = document.getElementById("auditLogBody");
 const playerHistoryPanel = document.getElementById("playerHistoryPanel");
+const fmsResyncResult = document.getElementById("fmsResyncResult");
 const exportTrainingsButton = document.getElementById("exportTrainingsButton");
 const importTrainingsButton = document.getElementById("importTrainingsButton");
 const importTrainingsFile = document.getElementById("importTrainingsFile");
@@ -795,7 +796,7 @@ function renderManagement() {
 function renderEmptyStats(message) {
   statsSummary.innerHTML = `<div class="stat-card"><span>Status</span><strong>${escapeHtml(message)}</strong></div>`;
   statsCourseBody.innerHTML = `<tr><td colspan="6">${escapeHtml(message)}</td></tr>`;
-  statsUserBody.innerHTML = `<tr><td colspan="7">${escapeHtml(message)}</td></tr>`;
+  statsUserBody.innerHTML = `<tr><td colspan="8">${escapeHtml(message)}</td></tr>`;
   statsPracticalBody.innerHTML = `<tr><td colspan="6">${escapeHtml(message)}</td></tr>`;
   statsFeedbackBody.innerHTML = `<tr><td colspan="6">${escapeHtml(message)}</td></tr>`;
   auditLogBody.innerHTML = `<tr><td colspan="6">${escapeHtml(message)}</td></tr>`;
@@ -889,11 +890,18 @@ function renderStats(stats) {
               <td>${user.averageScore === null ? "N/A" : `${user.averageScore}%`}</td>
               <td>${escapeHtml((user.completedCourses || []).join(", ") || "None")}</td>
               <td><button class="ghost-button" type="button" data-player-history="${escapeHtml(user.discordId)}">View</button></td>
+              <td>
+                ${
+                  currentAccess?.leadership
+                    ? `<button class="ghost-button" type="button" data-fms-resync="${escapeHtml(user.discordId)}">Re-sync Roles</button>`
+                    : "Leadership only"
+                }
+              </td>
             </tr>
           `,
         )
         .join("")
-    : `<tr><td colspan="7">No player progress has been saved yet.</td></tr>`;
+    : `<tr><td colspan="8">No player progress has been saved yet.</td></tr>`;
 
   statsPracticalBody.innerHTML = stats.practicalAssessments?.length
     ? stats.practicalAssessments
@@ -969,6 +977,21 @@ async function updatePracticalAssessment(discordId, courseId, status) {
   renderStats(result.stats);
   const audit = await api("/api/audit-log");
   renderAuditLog(audit.auditLog || []);
+  statsLoaded = true;
+}
+
+async function resyncFmsRoles(discordId) {
+  if (!currentAccess?.leadership) return;
+  fmsResyncResult.textContent = "Re-syncing roles...";
+  const result = await api("/api/fms-role-resync", {
+    method: "POST",
+    body: JSON.stringify({ discordId }),
+  });
+  renderStats(result.stats);
+  const audit = await api("/api/audit-log");
+  renderAuditLog(audit.auditLog || []);
+  const summary = result.result || {};
+  fmsResyncResult.textContent = `Role re-sync complete. Added ${summary.added || 0}, already present ${summary.skipped || 0}, failed ${summary.failed || 0}.`;
   statsLoaded = true;
 }
 
@@ -1776,6 +1799,14 @@ importTrainingsFile.addEventListener("change", async () => {
 });
 
 statsUserBody.addEventListener("click", (event) => {
+  const resyncButton = event.target.closest("[data-fms-resync]");
+  if (resyncButton) {
+    resyncFmsRoles(resyncButton.dataset.fmsResync).catch((error) => {
+      fmsResyncResult.textContent = error.message || "Role re-sync failed.";
+    });
+    return;
+  }
+
   const button = event.target.closest("[data-player-history]");
   if (!button) return;
   const users = latestStats?.users || [];
