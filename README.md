@@ -108,6 +108,14 @@ https://YOUR_RENDER_APP.onrender.com/auth/discord/callback
 
 Use the same value for `DISCORD_REDIRECT_URI`.
 
+For the custom Five999 domain, both the Discord Developer Portal redirect and the Render environment value must be exactly:
+
+```text
+https://training.fiverpgroup.com/auth/discord/callback
+```
+
+Do not include quotes, query parameters, or a trailing slash. If Discord reports `invalid_client`, reset the OAuth2 client secret in the Discord Developer Portal and replace `DISCORD_CLIENT_SECRET` in Render, then redeploy the service. A Discord bot token is not the same as the OAuth2 client secret.
+
 ## Role Locked Admin Areas
 
 - Players can complete trainings and save progress.

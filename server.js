@@ -13,10 +13,22 @@ const DATA_FILE = path.join(__dirname, "data", "progress.json");
 const COURSES_FILE = path.join(__dirname, "data", "courses.json");
 const AUDIT_FILE = path.join(__dirname, "data", "audit-log.json");
 
+function cleanEnvironmentValue(value) {
+  const trimmed = String(value || "").trim();
+  if (
+    trimmed.length >= 2 &&
+    ((trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+      (trimmed.startsWith("'") && trimmed.endsWith("'")))
+  ) {
+    return trimmed.slice(1, -1).trim();
+  }
+  return trimmed;
+}
+
 const {
-  DISCORD_CLIENT_ID,
-  DISCORD_CLIENT_SECRET,
-  DISCORD_REDIRECT_URI,
+  DISCORD_CLIENT_ID: RAW_DISCORD_CLIENT_ID,
+  DISCORD_CLIENT_SECRET: RAW_DISCORD_CLIENT_SECRET,
+  DISCORD_REDIRECT_URI: RAW_DISCORD_REDIRECT_URI,
   DISCORD_GUILD_ID,
   DISCORD_BOT_TOKEN,
   COMMAND_ROLE_IDS = "",
@@ -28,6 +40,10 @@ const {
   DATABASE_URL,
   SESSION_SECRET = "replace-this-session-secret-before-production",
 } = process.env;
+
+const DISCORD_CLIENT_ID = cleanEnvironmentValue(RAW_DISCORD_CLIENT_ID);
+const DISCORD_CLIENT_SECRET = cleanEnvironmentValue(RAW_DISCORD_CLIENT_SECRET);
+const DISCORD_REDIRECT_URI = cleanEnvironmentValue(RAW_DISCORD_REDIRECT_URI).replace(/\/$/, "");
 
 const OLD_EXAMPLE_TRAINING_IDS = new Set([
   "rpu",
@@ -1429,7 +1445,7 @@ app.post("/auth/logout", (req, res) => {
 });
 
 app.get("/auth/discord", (req, res) => {
-  if (!DISCORD_CLIENT_ID || !DISCORD_REDIRECT_URI) {
+  if (!DISCORD_CLIENT_ID || !DISCORD_CLIENT_SECRET || !DISCORD_REDIRECT_URI) {
     res.status(500).send("Discord OAuth is not configured yet.");
     return;
   }
@@ -1470,7 +1486,36 @@ app.get("/auth/discord/callback", async (req, res, next) => {
     });
 
     if (!tokenResponse.ok) {
-      res.status(502).send("Discord token exchange failed.");
+      const responseText = await tokenResponse.text();
+      let discordError = {};
+      try {
+        discordError = JSON.parse(responseText);
+      } catch {
+        discordError = { error: "unknown_error" };
+      }
+
+      console.error("Discord OAuth token exchange failed", {
+        status: tokenResponse.status,
+        error: discordError.error,
+        errorDescription: discordError.error_description,
+        redirectUri: DISCORD_REDIRECT_URI,
+      });
+
+      if (discordError.error === "invalid_client") {
+        res
+          .status(502)
+          .send("Discord rejected the website credentials. An administrator needs to update the Discord client ID and secret.");
+        return;
+      }
+
+      if (discordError.error === "invalid_grant") {
+        res
+          .status(502)
+          .send("Discord sign-in expired or the callback URL does not match. Please return to the website and try again.");
+        return;
+      }
+
+      res.status(502).send("Discord sign-in is temporarily unavailable. Please try again shortly.");
       return;
     }
 
