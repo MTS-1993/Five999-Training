@@ -310,6 +310,8 @@ function sanitizeCourses(courses) {
     tag: String(course.tag || "Specialist training").slice(0, 120),
     summary: String(course.summary || "").slice(0, 500),
     published: course.published !== false,
+    linkOnly: course.linkOnly === true,
+    accessCode: String(course.accessCode || "").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 128),
     imageUrl: sanitizeUrl(course.imageUrl),
     resourceUrl: sanitizeUrl(course.resourceUrl),
     theoryFmsTrainingGroupIds: parseNumericIds(course.theoryFmsTrainingGroupIds),
@@ -1195,11 +1197,19 @@ app.get("/api/courses", async (req, res, next) => {
     const user = verifySession(parseCookies(req)[SESSION_COOKIE]);
     const access = user ? await getAccess(user) : null;
     const courses = await getCourses();
+    const requestedCourseId = String(req.query.training || "");
+    const suppliedAccessCode = String(req.query.access || "");
+    const hasPrivateLinkAccess = (course) =>
+      course.linkOnly === true &&
+      course.id === requestedCourseId &&
+      course.accessCode &&
+      course.accessCode === suppliedAccessCode;
+    const isPublic = (course) => course.published !== false && course.linkOnly !== true;
     const visibleCourses = access?.leadership
       ? courses
       : access?.command
-        ? courses.filter((course) => course.published !== false || canManageService(access, course.service))
-        : courses.filter((course) => course.published !== false);
+        ? courses.filter((course) => isPublic(course) || canManageService(access, course.service) || hasPrivateLinkAccess(course))
+        : courses.filter((course) => isPublic(course) || hasPrivateLinkAccess(course));
     res.json({
       courses: visibleCourses,
     });

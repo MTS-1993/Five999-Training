@@ -8,6 +8,7 @@ const serviceSections = [
   "UK Highways",
   "National Transport Police",
   "Emergency Operations Centre",
+  "Community Welfare Team",
 ];
 
 const oldExampleTrainingIds = new Set([
@@ -29,6 +30,9 @@ let currentTheme = localStorage.getItem("five999TrainingTheme") || "light";
 let progress = {};
 let currentUser = null;
 let currentAccess = null;
+const directLinkParams = new URLSearchParams(window.location.search);
+const directCourseId = directLinkParams.get("training") || "";
+const directAccessCode = directLinkParams.get("access") || "";
 let authConfigured = false;
 let selectedManagerCourseId = "__new__";
 let adminMode = false;
@@ -109,6 +113,7 @@ const fmsResyncResult = document.getElementById("fmsResyncResult");
 const exportTrainingsButton = document.getElementById("exportTrainingsButton");
 const importTrainingsButton = document.getElementById("importTrainingsButton");
 const importTrainingsFile = document.getElementById("importTrainingsFile");
+const copyPrivateLinkButton = document.getElementById("copyPrivateLinkButton");
 
 function applyTheme() {
   document.body.classList.toggle("dark-theme", currentTheme === "dark");
@@ -203,6 +208,8 @@ function normalizeCourse(course) {
     service: course.service || serviceSections[0],
     division: course.division || "General",
     published: course.published !== false,
+    linkOnly: course.linkOnly === true,
+    accessCode: course.accessCode || "",
     imageUrl: course.imageUrl || "",
     resourceUrl: course.resourceUrl || "",
     theoryFmsTrainingGroupIds: Array.isArray(course.theoryFmsTrainingGroupIds) ? course.theoryFmsTrainingGroupIds : [],
@@ -240,7 +247,10 @@ function courseMatchesSearch(course) {
 }
 
 function getVisibleCourses() {
-  return courses.filter((course) => (course.published !== false || canManageTrainings()) && courseMatchesSearch(course));
+  return courses.filter((course) =>
+    (canManageTrainings() || (course.published !== false && course.linkOnly !== true)) &&
+    courseMatchesSearch(course)
+  );
 }
 
 function sortCoursesAlphabetically(items) {
@@ -272,7 +282,12 @@ function openFirstSearchResult() {
 function getCourse() {
   const course = courses.find((item) => item.id === selectedCourseId) || null;
   if (!course) return null;
-  if (course.published === false && !canManageTrainings()) return null;
+  const hasDirectAccess =
+    course.linkOnly === true &&
+    course.id === directCourseId &&
+    course.accessCode &&
+    course.accessCode === directAccessCode;
+  if ((course.published === false || course.linkOnly === true) && !canManageTrainings() && !hasDirectAccess) return null;
   return course;
 }
 
@@ -412,6 +427,8 @@ function createBlankTraining() {
     tag: "",
     summary: "",
     published: true,
+    linkOnly: false,
+    accessCode: "",
     imageUrl: "",
     resourceUrl: "",
     theoryFmsTrainingGroupIds: [],
@@ -437,6 +454,14 @@ function createBlankTraining() {
       },
     ],
   };
+}
+
+function privateTrainingUrl(course) {
+  if (!course?.id || !course?.accessCode) return "";
+  const url = new URL(window.location.origin + window.location.pathname);
+  url.searchParams.set("training", course.id);
+  url.searchParams.set("access", course.accessCode);
+  return url.toString();
 }
 
 function getManagerCourse() {
@@ -501,6 +526,8 @@ function fillManagerForm(course) {
     managerForm.elements.icon.value = "TR";
     managerForm.elements.summary.value = "";
     managerForm.elements.published.checked = true;
+    managerForm.elements.linkOnly.checked = false;
+    managerForm.elements.accessCode.value = "";
     managerForm.elements.imageUrl.value = "";
     managerForm.elements.imageUpload.value = "";
     managerForm.elements.resourceUrl.value = "";
@@ -527,6 +554,8 @@ function fillManagerForm(course) {
   managerForm.elements.icon.value = normalized.icon || "TR";
   managerForm.elements.summary.value = normalized.summary || "";
   managerForm.elements.published.checked = normalized.published !== false;
+  managerForm.elements.linkOnly.checked = normalized.linkOnly === true;
+  managerForm.elements.accessCode.value = normalized.accessCode || "";
   managerForm.elements.imageUrl.value = normalized.imageUrl || "";
   managerForm.elements.imageUpload.value = "";
   managerForm.elements.resourceUrl.value = normalized.resourceUrl || "";
@@ -1871,6 +1900,17 @@ addQuestionButton.addEventListener("click", () => {
   renderQuizBuilder(quiz);
 });
 
+copyPrivateLinkButton.addEventListener("click", async () => {
+  const course = getManagerCourse();
+  const url = privateTrainingUrl(course);
+  if (!course?.linkOnly || !url) {
+    managerResult.textContent = "Save this training as Private link only first.";
+    return;
+  }
+  await navigator.clipboard.writeText(url);
+  managerResult.textContent = "Private training link copied.";
+});
+
 managerForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!canManageTrainings()) return;
@@ -1908,6 +1948,10 @@ managerForm.addEventListener("submit", async (event) => {
       icon: managerForm.elements.icon.value,
       summary: managerForm.elements.summary.value,
       published: managerForm.elements.published.checked,
+      linkOnly: managerForm.elements.linkOnly.checked,
+      accessCode: managerForm.elements.linkOnly.checked
+        ? (managerForm.elements.accessCode.value || crypto.randomUUID().replaceAll("-", ""))
+        : "",
       imageUrl: uploadedTrainingImage || managerForm.elements.imageUrl.value,
       resourceUrl: managerForm.elements.resourceUrl.value,
       theoryFmsTrainingGroupIds: parseNumberList(managerForm.elements.theoryFmsTrainingGroupIds.value),
@@ -1931,7 +1975,10 @@ managerForm.addEventListener("submit", async (event) => {
     selectedManagerCourseId = nextCourse.id;
     currentView = "admin";
     await saveCoursesToServer();
-    managerResult.textContent = "Training saved.";
+    managerForm.elements.accessCode.value = nextCourse.accessCode;
+    managerResult.textContent = nextCourse.linkOnly
+      ? `Training saved privately. Link: ${privateTrainingUrl(nextCourse)}`
+      : "Training saved.";
     render();
   } catch (error) {
     managerResult.textContent = error.message || "Check the training fields, then try again.";
@@ -1939,10 +1986,13 @@ managerForm.addEventListener("submit", async (event) => {
 });
 
 async function init() {
+  const coursesUrl = directCourseId && directAccessCode
+    ? `/api/courses?training=${encodeURIComponent(directCourseId)}&access=${encodeURIComponent(directAccessCode)}`
+    : "/api/courses";
   const [config, me, savedCourses] = await Promise.all([
     api("/api/config"),
     api("/api/me"),
-    api("/api/courses"),
+    api(coursesUrl),
   ]);
   authConfigured = config.authConfigured;
   currentUser = me.user;
@@ -1952,10 +2002,15 @@ async function init() {
   } else {
     normalizeCourses();
   }
-  selectedCourseId = "";
+  selectedCourseId = courses.some((course) => course.id === directCourseId) ? directCourseId : "";
   selectedService = courses[0]?.service || serviceSections[0];
   expandedServices = new Set();
   selectedManagerCourseId = "__new__";
+  if (selectedCourseId) {
+    const directCourse = courses.find((course) => course.id === selectedCourseId);
+    selectedService = directCourse?.service || selectedService;
+    currentView = "training";
+  }
 
   if (isSignedIn()) {
     const saved = await api("/api/progress");

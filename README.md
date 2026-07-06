@@ -21,6 +21,17 @@ A Render-hosted training dashboard for Five999 players to sign in with Discord, 
 - Leadership-only training and division delete/admin tools
 - Separate role-locked Create/Edit/Delete area, no JSON editing required
 - Draft/published toggle so Command can prepare trainings before players see them
+- Private-link trainings that stay out of the public catalogue and only load from a URL containing their access code
+
+## Creating a private Community Welfare Team training
+
+1. Open the Training Dashboard and choose **Create New Training**.
+2. Select **Community Welfare Team** as the service section.
+3. Add the training modules and quiz.
+4. Leave **Published to players** enabled and enable **Private link only**.
+5. Save the training, then use **Copy Private Link**.
+
+Only people with that complete URL can load the training. It is omitted from the public training list and search results. Saving the training again keeps the same private URL unless its access code is manually changed.
 - Role-locked admin analytics for Command and Leadership teams
 - Optional service-specific Command permissions by Discord role
 - Audit log for training edits, imports, exports, and practical assessments

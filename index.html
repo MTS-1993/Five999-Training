@@ -387,6 +387,15 @@
                 <span>Published to players</span>
               </label>
 
+              <label class="toggle-row">
+                <input id="managerLinkOnly" name="linkOnly" type="checkbox" />
+                <span>Private link only (hidden from the public training list)</span>
+              </label>
+
+              <label class="field-label" for="managerAccessCode">Private-link access code</label>
+              <input id="managerAccessCode" name="accessCode" placeholder="Generated automatically when saved" />
+              <button class="ghost-button" id="copyPrivateLinkButton" type="button">Copy Private Link</button>
+
               <label class="field-label" for="managerImageUrl">Image URL</label>
               <input id="managerImageUrl" name="imageUrl" placeholder="https://example.com/image.png" />
 
