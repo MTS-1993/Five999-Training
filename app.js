@@ -1009,19 +1009,40 @@ async function updatePracticalAssessment(discordId, courseId, status) {
   statsLoaded = true;
 }
 
-async function resyncFmsRoles(discordId) {
+async function resyncFmsRoles(discordId, button = null) {
   if (!currentAccess?.leadership) return;
+
+  const normalizedDiscordId = String(discordId || "").trim();
+  if (!normalizedDiscordId) {
+    throw new Error("This player does not have a valid Discord ID.");
+  }
+
+  const originalText = button?.textContent || "Re-sync Roles";
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Re-syncing...";
+  }
   fmsResyncResult.textContent = "Re-syncing roles...";
-  const result = await api("/api/fms-role-resync", {
-    method: "POST",
-    body: JSON.stringify({ discordId }),
-  });
-  renderStats(result.stats);
-  const audit = await api("/api/audit-log");
-  renderAuditLog(audit.auditLog || []);
-  const summary = result.result || {};
-  fmsResyncResult.textContent = `Role re-sync complete. Added ${summary.added || 0}, already present ${summary.skipped || 0}, failed ${summary.failed || 0}.`;
-  statsLoaded = true;
+
+  try {
+    const result = await api("/api/fms-role-resync", {
+      method: "POST",
+      body: JSON.stringify({ discordId: normalizedDiscordId }),
+    });
+    renderStats(result.stats);
+    const audit = await api("/api/audit-log");
+    renderAuditLog(audit.auditLog || []);
+    const summary = result.result || {};
+    fmsResyncResult.textContent = summary.checked
+      ? `Role re-sync complete. Added ${summary.added || 0}, already present ${summary.skipped || 0}, failed ${summary.failed || 0}.`
+      : "Role re-sync complete, but this player has no completed training with an FMS group configured.";
+    statsLoaded = true;
+  } finally {
+    if (button?.isConnected) {
+      button.disabled = false;
+      button.textContent = originalText;
+    }
+  }
 }
 
 async function loadStats() {
@@ -1828,19 +1849,29 @@ importTrainingsFile.addEventListener("change", async () => {
 });
 
 statsUserBody.addEventListener("click", (event) => {
-  const resyncButton = event.target.closest("[data-fms-resync]");
+  const clickedElement = event.target instanceof Element ? event.target : null;
+  if (!clickedElement) return;
+
+  const resyncButton = clickedElement.closest("[data-fms-resync]");
   if (resyncButton) {
-    resyncFmsRoles(resyncButton.dataset.fmsResync).catch((error) => {
+    event.preventDefault();
+    resyncFmsRoles(resyncButton.dataset.fmsResync, resyncButton).catch((error) => {
       fmsResyncResult.textContent = error.message || "Role re-sync failed.";
     });
     return;
   }
 
-  const button = event.target.closest("[data-player-history]");
-  if (!button) return;
+  const profileButton = clickedElement.closest("[data-player-history]");
+  if (!profileButton) return;
+  event.preventDefault();
+
+  const requestedId = String(profileButton.dataset.playerHistory || "").trim();
   const users = latestStats?.users || [];
-  const user = users.find((item) => item.discordId === button.dataset.playerHistory);
+  const user = users.find((item) => String(item.discordId || "").trim() === requestedId);
   renderPlayerHistory(user);
+  if (user) {
+    playerHistoryPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
 });
 
 statsPracticalBody.addEventListener("click", (event) => {

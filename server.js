@@ -1390,14 +1390,14 @@ app.post("/api/fms-role-resync", requireUser, async (req, res, next) => {
       return;
     }
 
-    const { discordId } = req.body || {};
+    const discordId = String(req.body?.discordId || "").trim();
     if (!discordId) {
       res.status(400).json({ error: "Discord ID is required." });
       return;
     }
 
     const rows = await getAllProgressRows();
-    const row = rows.find((item) => item.discordId === discordId);
+    const row = rows.find((item) => String(item.discordId || "").trim() === discordId);
     if (!row) {
       res.status(404).json({ error: "Player progress was not found." });
       return;
