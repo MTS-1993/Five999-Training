@@ -148,6 +148,8 @@ async function api(path, options = {}) {
       payload.status ? `Status: ${payload.status}` : "",
       payload.outboundIp ? `Outbound IP: ${payload.outboundIp}` : "",
       payload.testUrl ? `URL: ${payload.testUrl}` : "",
+      payload.issue ? `Likely cause: ${payload.issue}` : "",
+      payload.syncId ? `Sync ID: ${payload.syncId}` : "",
     ].filter(Boolean);
     throw new Error(details.join(" | "));
   }
@@ -1033,9 +1035,22 @@ async function resyncFmsRoles(discordId, button = null) {
     const audit = await api("/api/audit-log");
     renderAuditLog(audit.auditLog || []);
     const summary = result.result || {};
-    fmsResyncResult.textContent = summary.checked
-      ? `Role re-sync complete. Added ${summary.added || 0}, already present ${summary.skipped || 0}, failed ${summary.failed || 0}.`
-      : "Role re-sync complete, but this player has no completed training with an FMS group configured.";
+    const failures = Array.isArray(summary.details)
+      ? summary.details.filter((item) => item.status === "failed")
+      : [];
+    if (!summary.checked) {
+      fmsResyncResult.textContent = "Role re-sync complete, but this player has no completed training with an FMS group configured.";
+    } else if (failures.length) {
+      const failureText = failures
+        .map((item) => {
+          const status = item.statusCode ? `HTTP ${item.statusCode}` : "Request error";
+          return `${item.courseTitle} (${item.type}): ${status} — ${item.issue || item.message || "Unknown error"}`;
+        })
+        .join(" | ");
+      fmsResyncResult.textContent = `Role re-sync completed with ${summary.failed} failure(s). Added ${summary.added || 0}, already present ${summary.skipped || 0}. ${failureText} Sync ID: ${summary.syncId || "unavailable"}.`;
+    } else {
+      fmsResyncResult.textContent = `Role re-sync complete. Added ${summary.added || 0}, already present ${summary.skipped || 0}, failed 0. Sync ID: ${summary.syncId || "unavailable"}.`;
+    }
     statsLoaded = true;
   } finally {
     if (button?.isConnected) {

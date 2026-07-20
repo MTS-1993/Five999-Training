@@ -30,5 +30,7 @@ services:
         sync: false
       - key: FMS_API_TOKEN
         sync: false
+      - key: FMS_SYNC_DEBUG
+        value: "false"
       - key: DATABASE_URL
         sync: false

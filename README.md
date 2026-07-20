@@ -79,6 +79,7 @@ Set these in Render:
 - `DISCORD_DM_NOTIFICATIONS`
 - `FMS_API_BASE_URL`
 - `FMS_API_TOKEN`
+- `FMS_SYNC_DEBUG`
 - `SESSION_SECRET`
 - `DATABASE_URL`
 
@@ -149,3 +150,10 @@ To get role IDs in Discord, enable Developer Mode, right-click the role, and cop
 6. Deploy.
 
 Render can also detect the included `render.yaml`.
+
+
+## FMS Role Sync Diagnostics
+
+Set `FMS_SYNC_DEBUG=true` in Render to log every FMS role-sync stage. Leave it as `false` to log sync starts, completions, and errors only. Logs include a short **Sync ID**, player Discord ID, course, requested group IDs, safe endpoint path, HTTP status, request duration, FMS response details, and a likely cause. The FMS API token is never written to logs.
+
+When a re-sync fails, the dashboard displays the failed course, HTTP status where available, likely cause, and the Sync ID. Search the Render logs for that Sync ID to see the complete diagnostic trail. Common messages identify invalid Discord IDs, missing FMS configuration, rejected tokens or IP whitelists, incorrect API URLs, rate limits, unavailable FMS services, and invalid training group IDs.
