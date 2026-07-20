@@ -157,3 +157,7 @@ Render can also detect the included `render.yaml`.
 Set `FMS_SYNC_DEBUG=true` in Render to log every FMS role-sync stage. Leave it as `false` to log sync starts, completions, and errors only. Logs include a short **Sync ID**, player Discord ID, course, requested group IDs, safe endpoint path, HTTP status, request duration, FMS response details, and a likely cause. The FMS API token is never written to logs.
 
 When a re-sync fails, the dashboard displays the failed course, HTTP status where available, likely cause, and the Sync ID. Search the Render logs for that Sync ID to see the complete diagnostic trail. Common messages identify invalid Discord IDs, missing FMS configuration, rejected tokens or IP whitelists, incorrect API URLs, rate limits, unavailable FMS services, and invalid training group IDs.
+
+## FMS role re-sync request optimisation
+
+Manual role re-sync now performs one preflight request to load the player's existing FMS groups. The result is cached for the entire sync, so individual courses no longer repeat the same lookup. If the preflight request is rejected (for example 401/403 authentication failure or 429 rate limiting), the sync stops immediately and returns the Sync ID and likely cause without sending requests for every course.
