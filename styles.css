@@ -2879,3 +2879,17 @@ textarea,
     padding: 24px 18px;
   }
 }
+
+
+.fms-sync-status {
+  margin: 14px 0 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.72);
+}
+.fms-sync-status__header { display:flex; justify-content:space-between; gap:16px; align-items:center; margin-bottom:8px; }
+.fms-sync-progress { height:8px; overflow:hidden; border-radius:999px; background:rgba(0,0,0,.09); }
+.fms-sync-progress span { display:block; width:38%; height:100%; border-radius:inherit; background:currentColor; animation:fms-sync-slide 1.05s ease-in-out infinite; }
+@keyframes fms-sync-slide { from { transform:translateX(-110%); } to { transform:translateX(360%); } }
+.dark-theme .fms-sync-status { background:rgba(13,34,49,.92); }

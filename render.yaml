@@ -32,5 +32,7 @@ services:
         sync: false
       - key: FMS_SYNC_DEBUG
         value: "false"
+      - key: FMS_SYNC_WEBHOOK_URL
+        sync: false
       - key: DATABASE_URL
         sync: false

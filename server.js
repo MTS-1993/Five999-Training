@@ -38,6 +38,7 @@ const {
   FMS_API_BASE_URL = "",
   FMS_API_TOKEN = "",
   FMS_SYNC_DEBUG = "false",
+  FMS_SYNC_WEBHOOK_URL = "",
   DATABASE_URL,
   SESSION_SECRET = "replace-this-session-secret-before-production",
 } = process.env;
@@ -288,6 +289,46 @@ function explainFmsError(error) {
   if (status >= 500) return "FMS returned a server error. The external FMS service may be unavailable.";
   if (error?.name === "TypeError") return "The FMS service could not be reached. Check the base URL, DNS, SSL certificate, and outbound network access.";
   return "Review the server log entry for the request stage, status, endpoint, and response details.";
+}
+
+
+async function sendFmsSyncWebhook(result, player) {
+  const webhookUrl = cleanEnvironmentValue(FMS_SYNC_WEBHOOK_URL);
+  if (!webhookUrl) return;
+
+  const failedItems = Array.isArray(result?.details)
+    ? result.details.filter((item) => item.status === "failed").slice(0, 8)
+    : [];
+  const fields = [
+    { name: "Player", value: `${player?.username || "Unknown"} (${player?.id || "Unknown ID"})`, inline: false },
+    { name: "Sync ID", value: String(result?.syncId || "Unavailable"), inline: true },
+    { name: "Duration", value: `${Number(result?.durationMs || 0)}ms`, inline: true },
+    { name: "Results", value: `Added: ${Number(result?.added || 0)}\nAlready present: ${Number(result?.skipped || 0)}\nFailed: ${Number(result?.failed || 0)}\nChecked: ${Number(result?.checked || 0)}`, inline: false },
+  ];
+  if (failedItems.length) {
+    fields.push({
+      name: "Failures",
+      value: failedItems.map((item) => `• ${item.courseTitle} (${item.type}): ${item.issue || item.message || "Unknown error"}`).join("\n").slice(0, 1000),
+      inline: false,
+    });
+  }
+
+  try {
+    await fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        embeds: [{
+          title: result?.failed ? "FMS role re-sync completed with errors" : "FMS role re-sync completed",
+          color: result?.failed ? 15158332 : 3066993,
+          fields,
+          timestamp: new Date().toISOString(),
+        }],
+      }),
+    });
+  } catch (error) {
+    fmsSyncLog(result?.syncId || "webhook", "Webhook", "Could not send sync summary webhook", { error: error.message }, "warn");
+  }
 }
 
 function fmsApiUrl(route) {
@@ -648,15 +689,12 @@ async function fmsRequest(route, options = {}, context = {}) {
   return data;
 }
 
-async function addFmsTrainingGroups(user, course, groupIds, note, message, context = {}, cachedExistingIds = null) {
+async function addFmsTrainingGroups(user, course, groupIds, note, message, context = {}) {
   groupIds = parseNumericIds(groupIds);
   if (!groupIds.length || !FMS_API_BASE_URL || !FMS_API_TOKEN) return null;
 
-  let existingIds = cachedExistingIds;
-  if (!(existingIds instanceof Set)) {
-    const lookup = await fmsRequest(`/training/groups/user?discordid=${encodeURIComponent(user.id)}`, {}, { ...context, stage: `${context.stage || "Group sync"}: look up existing groups` });
-    existingIds = new Set((lookup?.data || []).map((group) => Number(group.id)));
-  }
+  const lookup = await fmsRequest(`/training/groups/user?discordid=${encodeURIComponent(user.id)}`, {}, { ...context, stage: `${context.stage || "Group sync"}: look up existing groups` });
+  const existingIds = new Set((lookup?.data || []).map((group) => Number(group.id)));
   const missingIds = groupIds.filter((groupId) => !existingIds.has(groupId));
 
   if (!missingIds.length) {
@@ -684,8 +722,6 @@ async function addFmsTrainingGroups(user, course, groupIds, note, message, conte
     body: JSON.stringify(body),
   }, { ...context, stage: `${context.stage || "Group sync"}: add missing groups` });
 
-  missingIds.forEach((groupId) => existingIds.add(groupId));
-
   return {
     ok: true,
     skipped: false,
@@ -695,11 +731,11 @@ async function addFmsTrainingGroups(user, course, groupIds, note, message, conte
   };
 }
 
-async function addFinalFmsTrainingGroups(user, course, context = {}, cachedExistingIds = null) {
-  return addFmsTrainingGroups(user, course, course.fmsTrainingGroupIds, course.fmsTrainingNote, "training group(s)", context, cachedExistingIds);
+async function addFinalFmsTrainingGroups(user, course, context = {}) {
+  return addFmsTrainingGroups(user, course, course.fmsTrainingGroupIds, course.fmsTrainingNote, "training group(s)", context);
 }
 
-async function addTheoryFmsTrainingGroups(user, course, context = {}, cachedExistingIds = null) {
+async function addTheoryFmsTrainingGroups(user, course, context = {}) {
   return addFmsTrainingGroups(
     user,
     course,
@@ -707,7 +743,6 @@ async function addTheoryFmsTrainingGroups(user, course, context = {}, cachedExis
     `Theory passed for ${course.title}; awaiting in-game practical.`,
     "theory/awaiting practical group(s)",
     context,
-    cachedExistingIds,
   );
 }
 
@@ -889,40 +924,15 @@ async function resyncFmsTrainingGroupsForRow(row, courses, syncId) {
     throw error;
   }
 
-  let existingGroupIds;
-  try {
-    fmsSyncLog(syncId, "Preflight", "Checking FMS authentication and loading the player's current groups", { discordId: playerUser.id });
-    const lookup = await fmsRequest(
-      `/training/groups/user?discordid=${encodeURIComponent(playerUser.id)}`,
-      {},
-      { syncId, stage: "Preflight: load existing groups" },
-    );
-    existingGroupIds = new Set((lookup?.data || []).map((group) => Number(group.id)).filter(Number.isInteger));
-    fmsSyncLog(syncId, "Preflight", "FMS authentication succeeded and current groups were cached", { existingGroupCount: existingGroupIds.size });
-  } catch (error) {
-    const issue = error.likelyCause || explainFmsError(error);
-    error.likelyCause = issue;
-    error.abortSync = true;
-    fmsSyncLog(syncId, "Aborted", "Role re-sync stopped during the FMS preflight check; no course requests were sent", {
-      error: error.message,
-      status: error.status || null,
-      endpoint: error.endpoint || null,
-      response: safeLogValue(error.responseBody),
-      likelyCause: issue,
-      durationMs: Date.now() - startedAt,
-    }, "error");
-    throw error;
-  }
-
   for (const course of courses) {
     const courseProgress = nextProgress[course.id];
     if (!courseProgress) continue;
     const syncTargets = [];
     if (courseProgress.theoryPassed && course.theoryFmsTrainingGroupIds.length) {
-      syncTargets.push({ key: "fmsTheorySync", label: "theory", groupIds: course.theoryFmsTrainingGroupIds, run: (ctx) => addTheoryFmsTrainingGroups(playerUser, course, ctx, existingGroupIds) });
+      syncTargets.push({ key: "fmsTheorySync", label: "theory", groupIds: course.theoryFmsTrainingGroupIds, run: (ctx) => addTheoryFmsTrainingGroups(playerUser, course, ctx) });
     }
     if (courseProgress.passed && course.fmsTrainingGroupIds.length) {
-      syncTargets.push({ key: "fmsTrainingSync", label: "completion", groupIds: course.fmsTrainingGroupIds, run: (ctx) => addFinalFmsTrainingGroups(playerUser, course, ctx, existingGroupIds) });
+      syncTargets.push({ key: "fmsTrainingSync", label: "completion", groupIds: course.fmsTrainingGroupIds, run: (ctx) => addFinalFmsTrainingGroups(playerUser, course, ctx) });
     }
 
     for (const target of syncTargets) {
@@ -956,6 +966,7 @@ async function resyncFmsTrainingGroupsForRow(row, courses, syncId) {
 
   result.durationMs = Date.now() - startedAt;
   fmsSyncLog(syncId, "Complete", result.failed ? "Role re-sync completed with errors" : "Role re-sync completed", { added: result.added, alreadyPresent: result.skipped, failed: result.failed, checked: result.checked, durationMs: result.durationMs }, result.failed ? "warn" : "info");
+  await sendFmsSyncWebhook(result, playerUser);
   return { progress: nextProgress, result };
 }
 

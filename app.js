@@ -110,6 +110,9 @@ const statsFeedbackBody = document.getElementById("statsFeedbackBody");
 const auditLogBody = document.getElementById("auditLogBody");
 const playerHistoryPanel = document.getElementById("playerHistoryPanel");
 const fmsResyncResult = document.getElementById("fmsResyncResult");
+const fmsSyncStatus = document.getElementById("fmsSyncStatus");
+const fmsSyncStatusLabel = document.getElementById("fmsSyncStatusLabel");
+const fmsSyncElapsed = document.getElementById("fmsSyncElapsed");
 const exportTrainingsButton = document.getElementById("exportTrainingsButton");
 const importTrainingsButton = document.getElementById("importTrainingsButton");
 const importTrainingsFile = document.getElementById("importTrainingsFile");
@@ -1024,7 +1027,15 @@ async function resyncFmsRoles(discordId, button = null) {
     button.disabled = true;
     button.textContent = "Re-syncing...";
   }
-  fmsResyncResult.textContent = "Re-syncing roles...";
+  fmsResyncResult.textContent = "";
+  const syncStartedAt = performance.now();
+  let elapsedTimer = null;
+  if (fmsSyncStatus) fmsSyncStatus.hidden = false;
+  if (fmsSyncStatusLabel) fmsSyncStatusLabel.textContent = "Checking completed training and syncing FMS roles…";
+  if (fmsSyncElapsed) fmsSyncElapsed.textContent = "0.0s";
+  elapsedTimer = window.setInterval(() => {
+    if (fmsSyncElapsed) fmsSyncElapsed.textContent = `${((performance.now() - syncStartedAt) / 1000).toFixed(1)}s`;
+  }, 100);
 
   try {
     const result = await api("/api/fms-role-resync", {
@@ -1038,8 +1049,9 @@ async function resyncFmsRoles(discordId, button = null) {
     const failures = Array.isArray(summary.details)
       ? summary.details.filter((item) => item.status === "failed")
       : [];
+    const durationText = `${((summary.durationMs || (performance.now() - syncStartedAt)) / 1000).toFixed(2)}s`;
     if (!summary.checked) {
-      fmsResyncResult.textContent = "Role re-sync complete, but this player has no completed training with an FMS group configured.";
+      fmsResyncResult.textContent = `Role re-sync complete in ${durationText}, but this player has no completed training with an FMS group configured. Sync ID: ${summary.syncId || "unavailable"}.`;
     } else if (failures.length) {
       const failureText = failures
         .map((item) => {
@@ -1047,12 +1059,15 @@ async function resyncFmsRoles(discordId, button = null) {
           return `${item.courseTitle} (${item.type}): ${status} — ${item.issue || item.message || "Unknown error"}`;
         })
         .join(" | ");
-      fmsResyncResult.textContent = `Role re-sync completed with ${summary.failed} failure(s). Added ${summary.added || 0}, already present ${summary.skipped || 0}. ${failureText} Sync ID: ${summary.syncId || "unavailable"}.`;
+      fmsResyncResult.textContent = `Role re-sync completed in ${durationText} with ${summary.failed} failure(s). Checked ${summary.checked || 0}; added ${summary.added || 0}; already present ${summary.skipped || 0}. ${failureText} Sync ID: ${summary.syncId || "unavailable"}.`;
     } else {
-      fmsResyncResult.textContent = `Role re-sync complete. Added ${summary.added || 0}, already present ${summary.skipped || 0}, failed 0. Sync ID: ${summary.syncId || "unavailable"}.`;
+      fmsResyncResult.textContent = `Role re-sync complete in ${durationText}. Checked ${summary.checked || 0}; added ${summary.added || 0}; already present ${summary.skipped || 0}; failed 0. Sync ID: ${summary.syncId || "unavailable"}.`;
     }
     statsLoaded = true;
   } finally {
+    if (elapsedTimer) window.clearInterval(elapsedTimer);
+    if (fmsSyncElapsed) fmsSyncElapsed.textContent = `${((performance.now() - syncStartedAt) / 1000).toFixed(1)}s`;
+    if (fmsSyncStatus) fmsSyncStatus.hidden = true;
     if (button?.isConnected) {
       button.disabled = false;
       button.textContent = originalText;
