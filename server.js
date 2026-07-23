@@ -259,6 +259,30 @@ function sanitizeExpiryDate(value) {
 
 const fmsSyncDebugEnabled = String(FMS_SYNC_DEBUG).toLowerCase() === "true";
 
+// Prevent the progress page and simultaneous sync operations from repeatedly
+// hitting FMS for the same player. Successful GET responses are cached briefly,
+// concurrent identical requests share one promise, and authorization failures
+// open a short circuit breaker instead of flooding the Framework API.
+const fmsGetCache = new Map();
+const fmsInFlightRequests = new Map();
+let fmsForbiddenUntil = 0;
+const FMS_GET_CACHE_MS = 30_000;
+const FMS_FORBIDDEN_COOLDOWN_MS = 60_000;
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function getFmsRetryDelayMs(responseText, retryAfterHeader) {
+  const headerSeconds = Number(retryAfterHeader);
+  if (Number.isFinite(headerSeconds) && headerSeconds >= 0) {
+    return Math.min(12_000, Math.ceil(headerSeconds * 1000) + 250);
+  }
+  const match = String(responseText || "").match(/try again in\s+(\d+)\s+seconds?/i);
+  if (match) return Math.min(12_000, Number(match[1]) * 1000 + 250);
+  return 2_000;
+}
+
 function safeLogValue(value, maxLength = 1500) {
   if (value === undefined || value === null) return value;
   const text = typeof value === "string" ? value : JSON.stringify(value);
@@ -625,7 +649,9 @@ async function fmsRequest(route, options = {}, context = {}) {
   const url = fmsApiUrl(route);
   const token = FMS_API_TOKEN.trim();
   const syncId = context.syncId || "background";
-  const method = options.method || "GET";
+  const method = String(options.method || "GET").toUpperCase();
+  const cacheKey = `${method}:${route}`;
+  const forceFresh = context.forceFresh === true;
 
   if (!url || !token) {
     const error = new Error("FMS integration is not configured. FMS_API_BASE_URL and FMS_API_TOKEN are required.");
@@ -634,59 +660,105 @@ async function fmsRequest(route, options = {}, context = {}) {
     throw error;
   }
 
-  const startedAt = Date.now();
-  fmsSyncLog(syncId, context.stage || "FMS request", "Sending request", { method, endpoint: route }, "debug");
-
-  let response;
-  try {
-    response = await fetch(url, {
-      ...options,
-      headers: {
-        Accept: "application/json, text/plain;q=0.9, */*;q=0.8",
-        "User-Agent": "Five999-Training-Dashboard/1.0",
-        "api-token": token,
-        "Content-Type": "application/json",
-        ...(options.headers || {}),
-      },
-    });
-  } catch (error) {
+  if (Date.now() < fmsForbiddenUntil) {
+    const remainingSeconds = Math.ceil((fmsForbiddenUntil - Date.now()) / 1000);
+    const error = new Error(`FMS requests are paused after a forbidden response. Retry in ${remainingSeconds} seconds.`);
+    error.status = 403;
+    error.code = "FMS_FORBIDDEN_COOLDOWN";
     error.endpoint = route;
     error.method = method;
-    error.durationMs = Date.now() - startedAt;
-    fmsSyncLog(syncId, context.stage || "FMS request", "Network request failed", {
-      method, endpoint: route, durationMs: error.durationMs, error: error.message, likelyCause: explainFmsError(error),
-    }, "error");
-    throw error;
-  }
-
-  const text = await response.text();
-  let data = null;
-  try {
-    data = text ? JSON.parse(text) : null;
-  } catch {
-    data = text;
-  }
-
-  const durationMs = Date.now() - startedAt;
-  if (!response.ok) {
-    const responseMessage = typeof data === "string" ? data : data?.message || data?.error || `FMS request failed with status ${response.status}`;
-    const error = new Error(responseMessage);
-    error.status = response.status;
-    error.endpoint = route;
-    error.method = method;
-    error.responseBody = safeLogValue(data);
-    error.durationMs = durationMs;
     error.likelyCause = explainFmsError(error);
-    fmsSyncLog(syncId, context.stage || "FMS request", "FMS returned an error", {
-      method, endpoint: route, status: response.status, durationMs, response: error.responseBody, likelyCause: error.likelyCause,
-    }, "error");
     throw error;
   }
 
-  fmsSyncLog(syncId, context.stage || "FMS request", "Request succeeded", {
-    method, endpoint: route, status: response.status, durationMs,
-  }, "debug");
-  return data;
+  if (method === "GET" && !forceFresh) {
+    const cached = fmsGetCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) return cached.data;
+    if (fmsInFlightRequests.has(cacheKey)) return fmsInFlightRequests.get(cacheKey);
+  }
+
+  const execute = async () => {
+    let attempt = 0;
+    while (attempt < 2) {
+      attempt += 1;
+      const startedAt = Date.now();
+      fmsSyncLog(syncId, context.stage || "FMS request", "Sending request", { method, endpoint: route, attempt }, "debug");
+
+      let response;
+      try {
+        response = await fetch(url, {
+          ...options,
+          headers: {
+            Accept: "application/json, text/plain;q=0.9, */*;q=0.8",
+            "User-Agent": "Five999-Training-Dashboard/1.1",
+            "api-token": token,
+            "Content-Type": "application/json",
+            ...(options.headers || {}),
+          },
+        });
+      } catch (error) {
+        error.endpoint = route;
+        error.method = method;
+        error.durationMs = Date.now() - startedAt;
+        fmsSyncLog(syncId, context.stage || "FMS request", "Network request failed", {
+          method, endpoint: route, durationMs: error.durationMs, error: error.message, likelyCause: explainFmsError(error),
+        }, "error");
+        throw error;
+      }
+
+      const text = await response.text();
+      let data = null;
+      try { data = text ? JSON.parse(text) : null; } catch { data = text; }
+      const durationMs = Date.now() - startedAt;
+
+      if (response.status === 429 && attempt === 1) {
+        const delayMs = getFmsRetryDelayMs(text, response.headers.get("retry-after"));
+        fmsSyncLog(syncId, context.stage || "FMS request", "FMS rate limit reached; retrying once", {
+          method, endpoint: route, status: response.status, delayMs,
+        }, "warn");
+        await wait(delayMs);
+        continue;
+      }
+
+      if (!response.ok) {
+        const responseMessage = typeof data === "string" ? data : data?.message || data?.error || `FMS request failed with status ${response.status}`;
+        const error = new Error(responseMessage);
+        error.status = response.status;
+        error.endpoint = route;
+        error.method = method;
+        error.responseBody = safeLogValue(data);
+        error.durationMs = durationMs;
+        error.likelyCause = explainFmsError(error);
+        if (response.status === 401 || response.status === 403) {
+          fmsForbiddenUntil = Date.now() + FMS_FORBIDDEN_COOLDOWN_MS;
+        }
+        fmsSyncLog(syncId, context.stage || "FMS request", "FMS returned an error", {
+          method, endpoint: route, status: response.status, durationMs, response: error.responseBody, likelyCause: error.likelyCause,
+        }, "error");
+        throw error;
+      }
+
+      fmsForbiddenUntil = 0;
+      if (method === "GET") {
+        fmsGetCache.set(cacheKey, { data, expiresAt: Date.now() + FMS_GET_CACHE_MS });
+      } else {
+        // Mutating a user's training groups makes all cached group lookups stale.
+        fmsGetCache.clear();
+      }
+
+      fmsSyncLog(syncId, context.stage || "FMS request", "Request succeeded", {
+        method, endpoint: route, status: response.status, durationMs,
+      }, "debug");
+      return data;
+    }
+  };
+
+  if (method === "GET" && !forceFresh) {
+    const promise = execute().finally(() => fmsInFlightRequests.delete(cacheKey));
+    fmsInFlightRequests.set(cacheKey, promise);
+    return promise;
+  }
+  return execute();
 }
 
 function extractFmsTrainingGroupIds(payload) {
@@ -742,7 +814,12 @@ async function addFmsTrainingGroups(user, course, groupIds, note, message, conte
     body: JSON.stringify(body),
   }, { ...context, stage: `${context.stage || "Group sync"}: add missing groups` });
 
-  const verification = await fmsRequest(lookupRoute, {}, { ...context, stage: `${context.stage || "Group sync"}: verify assigned groups` });
+  await wait(750);
+  const verification = await fmsRequest(lookupRoute, {}, {
+    ...context,
+    forceFresh: true,
+    stage: `${context.stage || "Group sync"}: verify assigned groups`,
+  });
   const verifiedIds = extractFmsTrainingGroupIds(verification);
   const unverifiedIds = missingIds.filter((groupId) => !verifiedIds.has(groupId));
   if (unverifiedIds.length) {
