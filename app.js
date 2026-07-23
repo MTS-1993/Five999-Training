@@ -1768,15 +1768,17 @@ quizForm.addEventListener("submit", async (event) => {
     markTheoryPassed(course, courseProgress, score);
   }
 
-  await saveProgress();
+  const saveResult = await saveProgress();
   render();
 
   const resultText = document.getElementById("resultText");
-  resultText.textContent =
-    score >= PASS_MARK
+  const syncFailure = saveResult?.syncFailures?.find((item) => item.courseId === course.id);
+  resultText.textContent = syncFailure
+    ? `You passed with ${score}%, but the FMS training group could not be applied: ${syncFailure.message}. Please contact command and provide the server log details.`
+    : score >= PASS_MARK
       ? course.practicalRequired
         ? `Theory passed with ${score}%. Command must now complete your in-game practical assessment.`
-        : `Passed with ${score}%. Your completion message is ready below.`
+        : `Passed with ${score}%. Your FMS training group has been applied and verified.`
       : `Scored ${score}%. You need ${PASS_MARK}% to pass, so review the briefing and try again.`;
 
   if (score >= PASS_MARK && !course.practicalRequired) {

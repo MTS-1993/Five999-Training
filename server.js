@@ -689,12 +689,32 @@ async function fmsRequest(route, options = {}, context = {}) {
   return data;
 }
 
+function extractFmsTrainingGroupIds(payload) {
+  const candidates = [
+    payload,
+    payload?.data,
+    payload?.groups,
+    payload?.traininggroups,
+    payload?.trainingGroups,
+    payload?.data?.groups,
+    payload?.data?.traininggroups,
+    payload?.data?.trainingGroups,
+  ];
+  const groups = candidates.find(Array.isArray) || [];
+  return new Set(
+    groups
+      .map((group) => Number(group?.id ?? group?.groupid ?? group?.groupId ?? group?.traininggroupid ?? group?.trainingGroupId ?? group))
+      .filter((id) => Number.isInteger(id) && id > 0),
+  );
+}
+
 async function addFmsTrainingGroups(user, course, groupIds, note, message, context = {}) {
   groupIds = parseNumericIds(groupIds);
   if (!groupIds.length || !FMS_API_BASE_URL || !FMS_API_TOKEN) return null;
 
-  const lookup = await fmsRequest(`/training/groups/user?discordid=${encodeURIComponent(user.id)}`, {}, { ...context, stage: `${context.stage || "Group sync"}: look up existing groups` });
-  const existingIds = new Set((lookup?.data || []).map((group) => Number(group.id)));
+  const lookupRoute = `/training/groups/user?discordid=${encodeURIComponent(user.id)}`;
+  const lookup = await fmsRequest(lookupRoute, {}, { ...context, stage: `${context.stage || "Group sync"}: look up existing groups` });
+  const existingIds = extractFmsTrainingGroupIds(lookup);
   const missingIds = groupIds.filter((groupId) => !existingIds.has(groupId));
 
   if (!missingIds.length) {
@@ -722,10 +742,21 @@ async function addFmsTrainingGroups(user, course, groupIds, note, message, conte
     body: JSON.stringify(body),
   }, { ...context, stage: `${context.stage || "Group sync"}: add missing groups` });
 
+  const verification = await fmsRequest(lookupRoute, {}, { ...context, stage: `${context.stage || "Group sync"}: verify assigned groups` });
+  const verifiedIds = extractFmsTrainingGroupIds(verification);
+  const unverifiedIds = missingIds.filter((groupId) => !verifiedIds.has(groupId));
+  if (unverifiedIds.length) {
+    const error = new Error(`FMS accepted the request but did not return the assigned training group(s): ${unverifiedIds.join(", ")}.`);
+    error.code = "FMS_ASSIGNMENT_NOT_VERIFIED";
+    error.endpoint = lookupRoute;
+    error.responseBody = safeLogValue(verification);
+    throw error;
+  }
+
   return {
     ok: true,
     skipped: false,
-    message: `FMS ${message} added.`,
+    message: `FMS ${message} added and verified.`,
     groupIds: missingIds,
     syncedAt: new Date().toISOString(),
   };
@@ -1552,7 +1583,15 @@ app.put("/api/progress", requireUser, async (req, res, next) => {
     await syncNewFmsCompletions(req.user, oldProgress, protectedProgress, courses);
     await saveProgress(req.user, protectedProgress);
     notifyNewCompletions(req.user, oldProgress, protectedProgress, courses).catch(console.error);
-    res.json({ ok: true, progress: protectedProgress });
+
+    const syncFailures = Object.entries(protectedProgress)
+      .flatMap(([courseId, item]) => [
+        item?.fmsTheorySync?.ok === false ? { courseId, type: "theory", message: item.fmsTheorySync.message } : null,
+        item?.fmsTrainingSync?.ok === false ? { courseId, type: "completion", message: item.fmsTrainingSync.message } : null,
+      ])
+      .filter(Boolean);
+
+    res.json({ ok: syncFailures.length === 0, progress: protectedProgress, syncFailures });
   } catch (error) {
     next(error);
   }
