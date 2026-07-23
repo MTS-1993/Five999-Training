@@ -35,8 +35,8 @@ const {
   LEADERSHIP_ROLE_IDS = "",
   SERVICE_COMMAND_ROLE_MAP = "",
   DISCORD_DM_NOTIFICATIONS = "false",
-  FMS_API_BASE_URL = "",
-  FMS_API_TOKEN = "",
+  FMS_API_BASE_URL: RAW_FMS_API_BASE_URL = "",
+  FMS_API_TOKEN: RAW_FMS_API_TOKEN = "",
   FMS_SYNC_DEBUG = "false",
   FMS_SYNC_WEBHOOK_URL = "",
   DATABASE_URL,
@@ -46,6 +46,8 @@ const {
 const DISCORD_CLIENT_ID = cleanEnvironmentValue(RAW_DISCORD_CLIENT_ID);
 const DISCORD_CLIENT_SECRET = cleanEnvironmentValue(RAW_DISCORD_CLIENT_SECRET);
 const DISCORD_REDIRECT_URI = cleanEnvironmentValue(RAW_DISCORD_REDIRECT_URI).replace(/\/$/, "");
+const FMS_API_BASE_URL = cleanEnvironmentValue(RAW_FMS_API_BASE_URL);
+const FMS_API_TOKEN = cleanEnvironmentValue(RAW_FMS_API_TOKEN);
 
 const OLD_EXAMPLE_TRAINING_IDS = new Set([
   "rpu",
@@ -1032,6 +1034,7 @@ async function resyncFmsTrainingGroupsForRow(row, courses, syncId) {
     throw error;
   }
 
+  courseLoop:
   for (const course of courses) {
     const courseProgress = nextProgress[course.id];
     if (!courseProgress) continue;
@@ -1068,6 +1071,14 @@ async function resyncFmsTrainingGroupsForRow(row, courses, syncId) {
           message: error.message || "FMS training group re-sync failed.", issue, statusCode: error.status || null, endpoint: error.endpoint || null, response: safeLogValue(error.responseBody),
         });
         fmsSyncLog(syncId, stage, "Course sync failed", { error: error.message, status: error.status || null, endpoint: error.endpoint || null, response: safeLogValue(error.responseBody), likelyCause: issue }, "error");
+        if (error.status === 401 || error.status === 403) {
+          fmsSyncLog(syncId, "Aborted", "Role re-sync stopped after FMS rejected authentication or access", {
+            status: error.status,
+            endpoint: error.endpoint || null,
+            likelyCause: issue,
+          }, "warn");
+          break courseLoop;
+        }
       }
     }
   }

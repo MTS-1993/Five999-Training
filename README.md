@@ -108,6 +108,8 @@ Set `DISCORD_DM_NOTIFICATIONS=true` if you want the bot to DM players when they 
 
 Set `FMS_API_BASE_URL` to your FMS framework API base, for example `https://yoururl.forcemanagementsystem.com/frameworkapi`, and set `FMS_API_TOKEN` to your FMS website token. Your Render outbound IP must be whitelisted in TASE under the FMS Framework API settings. Each training can then be configured with one or more FMS training group IDs in the Command training editor.
 
+Enter both Render values without surrounding quote marks. The application also strips accidental matching quotes at startup. If FMS returns `403 Forbidden`, confirm that the token is current and that the outbound IP shown for the Render service is present in the FMS Framework API whitelist; retrying course-by-course cannot bypass either restriction.
+
 When a player signs in, the dashboard checks their existing FMS training groups. If they already hold the final FMS training group configured on a course, that course is automatically marked as completed on their dashboard. If a practical course has a theory/awaiting-practical FMS group configured, that can also be imported as theory passed while still leaving the practical stage pending.
 
 ## Discord OAuth2 Redirect
