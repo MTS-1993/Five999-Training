@@ -37,6 +37,8 @@ const {
   DISCORD_DM_NOTIFICATIONS = "false",
   FMS_API_BASE_URL = "",
   FMS_API_TOKEN = "",
+  FMS_API_TOKEN_HEADER = "api-token",
+  FMS_API_TOKEN_PREFIX = "",
   FMS_SYNC_DEBUG = "false",
   FMS_SYNC_WEBHOOK_URL = "",
   DATABASE_URL,
@@ -627,7 +629,10 @@ async function sendDiscordDm(discordId, message) {
 
 async function fmsRequest(route, options = {}, context = {}) {
   const url = fmsApiUrl(route);
-  const token = FMS_API_TOKEN.trim();
+  const token = cleanEnvironmentValue(FMS_API_TOKEN);
+  const tokenHeader = cleanEnvironmentValue(FMS_API_TOKEN_HEADER) || "api-token";
+  const tokenPrefix = cleanEnvironmentValue(FMS_API_TOKEN_PREFIX);
+  const tokenValue = tokenPrefix ? `${tokenPrefix} ${token}` : token;
   const syncId = context.syncId || "background";
   const method = options.method || "GET";
 
@@ -639,7 +644,14 @@ async function fmsRequest(route, options = {}, context = {}) {
   }
 
   const startedAt = Date.now();
-  fmsSyncLog(syncId, context.stage || "FMS request", "Sending request", { method, endpoint: route }, "debug");
+  fmsSyncLog(syncId, context.stage || "FMS request", "Sending request", {
+    method,
+    endpoint: route,
+    resolvedBaseUrl: fmsApiUrl("").replace(/\/$/, ""),
+    authHeader: tokenHeader,
+    authPrefix: tokenPrefix || "(none)",
+    tokenLength: token.length,
+  }, "debug");
 
   let response;
   try {
@@ -648,7 +660,7 @@ async function fmsRequest(route, options = {}, context = {}) {
       headers: {
         Accept: "application/json, text/plain;q=0.9, */*;q=0.8",
         "User-Agent": "Five999-Training-Dashboard/1.0",
-        "api-token": token,
+        [tokenHeader]: tokenValue,
         "Content-Type": "application/json",
         ...(options.headers || {}),
       },
@@ -1516,6 +1528,42 @@ app.post("/api/practical-assessments", requireUser, async (req, res, next) => {
     res.json({ ok: true, stats: buildStats(access.leadership ? courses : getManageableCourses(access, courses), await getAllProgressRows()) });
   } catch (error) {
     next(error);
+  }
+});
+
+app.get("/api/fms-connection-test", requireUser, async (req, res) => {
+  const discordId = String(req.query.discordid || req.user?.id || "").replace(/\D/g, "");
+  const route = `/training/groups/user?discordid=${encodeURIComponent(discordId)}`;
+  const startedAt = Date.now();
+  try {
+    const data = await fmsRequest(route, {}, { syncId: "connection-test", stage: "Connection test" });
+    return res.json({
+      ok: true,
+      status: 200,
+      durationMs: Date.now() - startedAt,
+      endpoint: route,
+      baseUrl: fmsApiUrl("").replace(/\/$/, ""),
+      authHeader: cleanEnvironmentValue(FMS_API_TOKEN_HEADER) || "api-token",
+      authPrefix: cleanEnvironmentValue(FMS_API_TOKEN_PREFIX) || "(none)",
+      tokenPresent: Boolean(cleanEnvironmentValue(FMS_API_TOKEN)),
+      tokenLength: cleanEnvironmentValue(FMS_API_TOKEN).length,
+      responseType: Array.isArray(data) ? "array" : typeof data,
+    });
+  } catch (error) {
+    return res.status(error.status || 502).json({
+      ok: false,
+      status: error.status || null,
+      durationMs: Date.now() - startedAt,
+      endpoint: error.endpoint || route,
+      baseUrl: fmsApiUrl("").replace(/\/$/, ""),
+      authHeader: cleanEnvironmentValue(FMS_API_TOKEN_HEADER) || "api-token",
+      authPrefix: cleanEnvironmentValue(FMS_API_TOKEN_PREFIX) || "(none)",
+      tokenPresent: Boolean(cleanEnvironmentValue(FMS_API_TOKEN)),
+      tokenLength: cleanEnvironmentValue(FMS_API_TOKEN).length,
+      error: error.message,
+      response: error.response,
+      likelyCause: explainFmsError(error),
+    });
   }
 });
 
