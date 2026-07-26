@@ -35,8 +35,8 @@ const {
   LEADERSHIP_ROLE_IDS = "",
   SERVICE_COMMAND_ROLE_MAP = "",
   DISCORD_DM_NOTIFICATIONS = "false",
-  FMS_API_BASE_URL: RAW_FMS_API_BASE_URL = "",
-  FMS_API_TOKEN: RAW_FMS_API_TOKEN = "",
+  FMS_API_BASE_URL = "",
+  FMS_API_TOKEN = "",
   FMS_SYNC_DEBUG = "false",
   FMS_SYNC_WEBHOOK_URL = "",
   DATABASE_URL,
@@ -46,8 +46,6 @@ const {
 const DISCORD_CLIENT_ID = cleanEnvironmentValue(RAW_DISCORD_CLIENT_ID);
 const DISCORD_CLIENT_SECRET = cleanEnvironmentValue(RAW_DISCORD_CLIENT_SECRET);
 const DISCORD_REDIRECT_URI = cleanEnvironmentValue(RAW_DISCORD_REDIRECT_URI).replace(/\/$/, "");
-const FMS_API_BASE_URL = cleanEnvironmentValue(RAW_FMS_API_BASE_URL);
-const FMS_API_TOKEN = cleanEnvironmentValue(RAW_FMS_API_TOKEN);
 
 const OLD_EXAMPLE_TRAINING_IDS = new Set([
   "rpu",
@@ -260,30 +258,10 @@ function sanitizeExpiryDate(value) {
 }
 
 const fmsSyncDebugEnabled = String(FMS_SYNC_DEBUG).toLowerCase() === "true";
+const FMS_SYNC_BUILD = "2026-07-26-background-guard-v4";
+let backgroundFmsBlockedUntil = 0;
 
-// Prevent the progress page and simultaneous sync operations from repeatedly
-// hitting FMS for the same player. Successful GET responses are cached briefly,
-// concurrent identical requests share one promise, and authorization failures
-// open a short circuit breaker instead of flooding the Framework API.
-const fmsGetCache = new Map();
-const fmsInFlightRequests = new Map();
-let fmsForbiddenUntil = 0;
-const FMS_GET_CACHE_MS = 30_000;
-const FMS_FORBIDDEN_COOLDOWN_MS = 60_000;
-
-function wait(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function getFmsRetryDelayMs(responseText, retryAfterHeader) {
-  const headerSeconds = Number(retryAfterHeader);
-  if (Number.isFinite(headerSeconds) && headerSeconds >= 0) {
-    return Math.min(12_000, Math.ceil(headerSeconds * 1000) + 250);
-  }
-  const match = String(responseText || "").match(/try again in\s+(\d+)\s+seconds?/i);
-  if (match) return Math.min(12_000, Number(match[1]) * 1000 + 250);
-  return 2_000;
-}
+console.log(`[F999 Training] FMS sync build: ${FMS_SYNC_BUILD}`);
 
 function safeLogValue(value, maxLength = 1500) {
   if (value === undefined || value === null) return value;
@@ -651,9 +629,7 @@ async function fmsRequest(route, options = {}, context = {}) {
   const url = fmsApiUrl(route);
   const token = FMS_API_TOKEN.trim();
   const syncId = context.syncId || "background";
-  const method = String(options.method || "GET").toUpperCase();
-  const cacheKey = `${method}:${route}`;
-  const forceFresh = context.forceFresh === true;
+  const method = options.method || "GET";
 
   if (!url || !token) {
     const error = new Error("FMS integration is not configured. FMS_API_BASE_URL and FMS_API_TOKEN are required.");
@@ -662,133 +638,67 @@ async function fmsRequest(route, options = {}, context = {}) {
     throw error;
   }
 
-  if (Date.now() < fmsForbiddenUntil) {
-    const remainingSeconds = Math.ceil((fmsForbiddenUntil - Date.now()) / 1000);
-    const error = new Error(`FMS requests are paused after a forbidden response. Retry in ${remainingSeconds} seconds.`);
-    error.status = 403;
-    error.code = "FMS_FORBIDDEN_COOLDOWN";
+  const startedAt = Date.now();
+  fmsSyncLog(syncId, context.stage || "FMS request", "Sending request", { method, endpoint: route }, "debug");
+
+  let response;
+  try {
+    response = await fetch(url, {
+      ...options,
+      headers: {
+        Accept: "application/json, text/plain;q=0.9, */*;q=0.8",
+        "User-Agent": "Five999-Training-Dashboard/1.0",
+        "api-token": token,
+        "Content-Type": "application/json",
+        ...(options.headers || {}),
+      },
+    });
+  } catch (error) {
     error.endpoint = route;
     error.method = method;
-    error.likelyCause = explainFmsError(error);
+    error.durationMs = Date.now() - startedAt;
+    fmsSyncLog(syncId, context.stage || "FMS request", "Network request failed", {
+      method, endpoint: route, durationMs: error.durationMs, error: error.message, likelyCause: explainFmsError(error),
+    }, "error");
     throw error;
   }
 
-  if (method === "GET" && !forceFresh) {
-    const cached = fmsGetCache.get(cacheKey);
-    if (cached && cached.expiresAt > Date.now()) return cached.data;
-    if (fmsInFlightRequests.has(cacheKey)) return fmsInFlightRequests.get(cacheKey);
+  const text = await response.text();
+  let data = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = text;
   }
 
-  const execute = async () => {
-    let attempt = 0;
-    while (attempt < 2) {
-      attempt += 1;
-      const startedAt = Date.now();
-      fmsSyncLog(syncId, context.stage || "FMS request", "Sending request", { method, endpoint: route, attempt }, "debug");
-
-      let response;
-      try {
-        response = await fetch(url, {
-          ...options,
-          headers: {
-            Accept: "application/json, text/plain;q=0.9, */*;q=0.8",
-            "User-Agent": "Five999-Training-Dashboard/1.1",
-            "api-token": token,
-            "Content-Type": "application/json",
-            ...(options.headers || {}),
-          },
-        });
-      } catch (error) {
-        error.endpoint = route;
-        error.method = method;
-        error.durationMs = Date.now() - startedAt;
-        fmsSyncLog(syncId, context.stage || "FMS request", "Network request failed", {
-          method, endpoint: route, durationMs: error.durationMs, error: error.message, likelyCause: explainFmsError(error),
-        }, "error");
-        throw error;
-      }
-
-      const text = await response.text();
-      let data = null;
-      try { data = text ? JSON.parse(text) : null; } catch { data = text; }
-      const durationMs = Date.now() - startedAt;
-
-      if (response.status === 429 && attempt === 1) {
-        const delayMs = getFmsRetryDelayMs(text, response.headers.get("retry-after"));
-        fmsSyncLog(syncId, context.stage || "FMS request", "FMS rate limit reached; retrying once", {
-          method, endpoint: route, status: response.status, delayMs,
-        }, "warn");
-        await wait(delayMs);
-        continue;
-      }
-
-      if (!response.ok) {
-        const responseMessage = typeof data === "string" ? data : data?.message || data?.error || `FMS request failed with status ${response.status}`;
-        const error = new Error(responseMessage);
-        error.status = response.status;
-        error.endpoint = route;
-        error.method = method;
-        error.responseBody = safeLogValue(data);
-        error.durationMs = durationMs;
-        error.likelyCause = explainFmsError(error);
-        if (response.status === 401 || response.status === 403) {
-          fmsForbiddenUntil = Date.now() + FMS_FORBIDDEN_COOLDOWN_MS;
-        }
-        fmsSyncLog(syncId, context.stage || "FMS request", "FMS returned an error", {
-          method, endpoint: route, status: response.status, durationMs, response: error.responseBody, likelyCause: error.likelyCause,
-        }, "error");
-        throw error;
-      }
-
-      fmsForbiddenUntil = 0;
-      if (method === "GET") {
-        fmsGetCache.set(cacheKey, { data, expiresAt: Date.now() + FMS_GET_CACHE_MS });
-      } else {
-        // Mutating a user's training groups makes all cached group lookups stale.
-        fmsGetCache.clear();
-      }
-
-      fmsSyncLog(syncId, context.stage || "FMS request", "Request succeeded", {
-        method, endpoint: route, status: response.status, durationMs,
-      }, "debug");
-      return data;
-    }
-  };
-
-  if (method === "GET" && !forceFresh) {
-    const promise = execute().finally(() => fmsInFlightRequests.delete(cacheKey));
-    fmsInFlightRequests.set(cacheKey, promise);
-    return promise;
+  const durationMs = Date.now() - startedAt;
+  if (!response.ok) {
+    const responseMessage = typeof data === "string" ? data : data?.message || data?.error || `FMS request failed with status ${response.status}`;
+    const error = new Error(responseMessage);
+    error.status = response.status;
+    error.endpoint = route;
+    error.method = method;
+    error.responseBody = safeLogValue(data);
+    error.durationMs = durationMs;
+    error.likelyCause = explainFmsError(error);
+    fmsSyncLog(syncId, context.stage || "FMS request", "FMS returned an error", {
+      method, endpoint: route, status: response.status, durationMs, response: error.responseBody, likelyCause: error.likelyCause,
+    }, "error");
+    throw error;
   }
-  return execute();
-}
 
-function extractFmsTrainingGroupIds(payload) {
-  const candidates = [
-    payload,
-    payload?.data,
-    payload?.groups,
-    payload?.traininggroups,
-    payload?.trainingGroups,
-    payload?.data?.groups,
-    payload?.data?.traininggroups,
-    payload?.data?.trainingGroups,
-  ];
-  const groups = candidates.find(Array.isArray) || [];
-  return new Set(
-    groups
-      .map((group) => Number(group?.id ?? group?.groupid ?? group?.groupId ?? group?.traininggroupid ?? group?.trainingGroupId ?? group))
-      .filter((id) => Number.isInteger(id) && id > 0),
-  );
+  fmsSyncLog(syncId, context.stage || "FMS request", "Request succeeded", {
+    method, endpoint: route, status: response.status, durationMs,
+  }, "debug");
+  return data;
 }
 
 async function addFmsTrainingGroups(user, course, groupIds, note, message, context = {}) {
   groupIds = parseNumericIds(groupIds);
   if (!groupIds.length || !FMS_API_BASE_URL || !FMS_API_TOKEN) return null;
 
-  const lookupRoute = `/training/groups/user?discordid=${encodeURIComponent(user.id)}`;
-  const lookup = await fmsRequest(lookupRoute, {}, { ...context, stage: `${context.stage || "Group sync"}: look up existing groups` });
-  const existingIds = extractFmsTrainingGroupIds(lookup);
+  const lookup = await fmsRequest(`/training/groups/user?discordid=${encodeURIComponent(user.id)}`, {}, { ...context, stage: `${context.stage || "Group sync"}: look up existing groups` });
+  const existingIds = new Set((lookup?.data || []).map((group) => Number(group.id)));
   const missingIds = groupIds.filter((groupId) => !existingIds.has(groupId));
 
   if (!missingIds.length) {
@@ -816,26 +726,10 @@ async function addFmsTrainingGroups(user, course, groupIds, note, message, conte
     body: JSON.stringify(body),
   }, { ...context, stage: `${context.stage || "Group sync"}: add missing groups` });
 
-  await wait(750);
-  const verification = await fmsRequest(lookupRoute, {}, {
-    ...context,
-    forceFresh: true,
-    stage: `${context.stage || "Group sync"}: verify assigned groups`,
-  });
-  const verifiedIds = extractFmsTrainingGroupIds(verification);
-  const unverifiedIds = missingIds.filter((groupId) => !verifiedIds.has(groupId));
-  if (unverifiedIds.length) {
-    const error = new Error(`FMS accepted the request but did not return the assigned training group(s): ${unverifiedIds.join(", ")}.`);
-    error.code = "FMS_ASSIGNMENT_NOT_VERIFIED";
-    error.endpoint = lookupRoute;
-    error.responseBody = safeLogValue(verification);
-    throw error;
-  }
-
   return {
     ok: true,
     skipped: false,
-    message: `FMS ${message} added and verified.`,
+    message: `FMS ${message} added.`,
     groupIds: missingIds,
     syncedAt: new Date().toISOString(),
   };
@@ -916,6 +810,10 @@ function createImportedTheoryPass(course, existingProgress, importedAt) {
 async function importFmsTrainingProgress(user, progress, courses) {
   if (!FMS_API_BASE_URL || !FMS_API_TOKEN || !user?.id) return progress || {};
 
+  // Background profile imports must never hammer FMS after an access rejection.
+  // Manual role re-sync requests do not use this guard and can retry immediately.
+  if (Date.now() < backgroundFmsBlockedUntil) return progress || {};
+
   const coursesWithFmsGroups = courses.filter(
     (course) => course.fmsTrainingGroupIds.length || course.theoryFmsTrainingGroupIds.length,
   );
@@ -925,6 +823,16 @@ async function importFmsTrainingProgress(user, progress, courses) {
   try {
     lookup = await fmsRequest(`/training/groups/user?discordid=${encodeURIComponent(user.id)}`);
   } catch (error) {
+    if ([401, 403, 429].includes(Number(error?.status))) {
+      const retryMs = Number(error?.status) === 429 ? 60_000 : 5 * 60_000;
+      backgroundFmsBlockedUntil = Date.now() + retryMs;
+      fmsSyncLog("background", "Background import guard", "Background FMS imports temporarily disabled after access rejection", {
+        status: Number(error?.status),
+        retryAfterSeconds: Math.ceil(retryMs / 1000),
+        manualSyncUnaffected: true,
+        build: FMS_SYNC_BUILD,
+      }, "warn");
+    }
     return progress || {};
   }
 
@@ -1019,6 +927,7 @@ async function resyncFmsTrainingGroupsForRow(row, courses, syncId) {
   const result = {
     syncId,
     added: 0, skipped: 0, failed: 0, notConfigured: 0, checked: 0, details: [], durationMs: 0,
+    aborted: false, abortStatus: null, abortReason: null,
   };
 
   fmsSyncLog(syncId, "Start", "Role re-sync started", { player: playerUser.username, discordId: playerUser.id, coursesAvailable: courses.length });
@@ -1034,7 +943,7 @@ async function resyncFmsTrainingGroupsForRow(row, courses, syncId) {
     throw error;
   }
 
-  courseLoop:
+  syncCourses:
   for (const course of courses) {
     const courseProgress = nextProgress[course.id];
     if (!courseProgress) continue;
@@ -1071,20 +980,30 @@ async function resyncFmsTrainingGroupsForRow(row, courses, syncId) {
           message: error.message || "FMS training group re-sync failed.", issue, statusCode: error.status || null, endpoint: error.endpoint || null, response: safeLogValue(error.responseBody),
         });
         fmsSyncLog(syncId, stage, "Course sync failed", { error: error.message, status: error.status || null, endpoint: error.endpoint || null, response: safeLogValue(error.responseBody), likelyCause: issue }, "error");
-        if (error.status === 401 || error.status === 403) {
-          fmsSyncLog(syncId, "Aborted", "Role re-sync stopped after FMS rejected authentication or access", {
-            status: error.status,
-            endpoint: error.endpoint || null,
+
+        // Stop only this sync after an authentication or rate-limit response.
+        // Do not create a process-wide cooldown: a later request may succeed once
+        // FMS access recovers, and other users should not inherit this failure.
+        if ([401, 403, 429].includes(Number(error.status))) {
+          result.aborted = true;
+          result.abortStatus = Number(error.status);
+          result.abortReason = error.message || issue;
+          fmsSyncLog(syncId, "Aborted", "Current role re-sync stopped after FMS rejected the request", {
+            player: playerUser.username,
+            discordId: playerUser.id,
+            status: result.abortStatus,
+            error: result.abortReason,
             likelyCause: issue,
+            remainingCoursesSkipped: true,
           }, "warn");
-          break courseLoop;
+          break syncCourses;
         }
       }
     }
   }
 
   result.durationMs = Date.now() - startedAt;
-  fmsSyncLog(syncId, "Complete", result.failed ? "Role re-sync completed with errors" : "Role re-sync completed", { added: result.added, alreadyPresent: result.skipped, failed: result.failed, checked: result.checked, durationMs: result.durationMs }, result.failed ? "warn" : "info");
+  fmsSyncLog(syncId, "Complete", result.aborted ? "Role re-sync aborted after an FMS rejection" : (result.failed ? "Role re-sync completed with errors" : "Role re-sync completed"), { added: result.added, alreadyPresent: result.skipped, failed: result.failed, checked: result.checked, aborted: result.aborted, abortStatus: result.abortStatus, durationMs: result.durationMs }, (result.failed || result.aborted) ? "warn" : "info");
   await sendFmsSyncWebhook(result, playerUser);
   return { progress: nextProgress, result };
 }
@@ -1671,15 +1590,7 @@ app.put("/api/progress", requireUser, async (req, res, next) => {
     await syncNewFmsCompletions(req.user, oldProgress, protectedProgress, courses);
     await saveProgress(req.user, protectedProgress);
     notifyNewCompletions(req.user, oldProgress, protectedProgress, courses).catch(console.error);
-
-    const syncFailures = Object.entries(protectedProgress)
-      .flatMap(([courseId, item]) => [
-        item?.fmsTheorySync?.ok === false ? { courseId, type: "theory", message: item.fmsTheorySync.message } : null,
-        item?.fmsTrainingSync?.ok === false ? { courseId, type: "completion", message: item.fmsTrainingSync.message } : null,
-      ])
-      .filter(Boolean);
-
-    res.json({ ok: syncFailures.length === 0, progress: protectedProgress, syncFailures });
+    res.json({ ok: true, progress: protectedProgress });
   } catch (error) {
     next(error);
   }
