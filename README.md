@@ -42,6 +42,7 @@ Only people with that complete URL can load the training. It is omitted from the
 - Bulk FMS role re-sync for selected or filtered players, including success/partial/failure summaries
 - Persistent FMS role-sync history with leader attribution, error details, and failed-sync retries
 - CSV reports for filtered completions, qualification expiry, outstanding saved training, and role-sync failures
+- Scheduled weekly Discord webhook reports covering compliance, expiry, completions, and FMS sync failures
 - Training feedback table in Command analytics
 - Optional image URLs and resource URLs for trainings and modules
 - Uploaded images for trainings and modules, stored with the training record
@@ -60,6 +61,7 @@ Only people with that complete URL can load the training. It is omitted from the
 - Downloadable completion certificate with player name, course, date, and Five999 logo
 - Downloadable PDF certificate as well as PNG certificate
 - Certificate preview after completing a course
+- Server-issued certificate references, QR codes, and public read-only certificate verification pages
 - Cleaner certificate completion summary with player name, score, date, and FMS status
 - Player feedback form after completing a course
 - Optional Discord DM notification when a player completes a training
@@ -87,8 +89,17 @@ Set these in Render:
 - `FMS_SYNC_DEBUG`
 - `SESSION_SECRET`
 - `DATABASE_URL`
+- `PUBLIC_APP_URL`
+- `WEEKLY_REPORTS_ENABLED`
+- `WEEKLY_REPORTS_WEBHOOK_URL`
+- `WEEKLY_REPORTS_DAY_UTC`
+- `WEEKLY_REPORTS_HOUR_UTC`
 
 `SESSION_SECRET` can be any long random secret. `DATABASE_URL` should come from a Render PostgreSQL database if you want progress to persist reliably.
+
+Set `PUBLIC_APP_URL` to the public dashboard origin, such as `https://training.fiverpgroup.com`, so certificate QR codes always use the correct verification URL.
+
+For weekly leadership reports, set `WEEKLY_REPORTS_ENABLED=true` and add a Discord webhook URL in `WEEKLY_REPORTS_WEBHOOK_URL`. `WEEKLY_REPORTS_DAY_UTC` uses `0` for Sunday through `6` for Saturday, while `WEEKLY_REPORTS_HOUR_UTC` uses `0` through `23`. The defaults are Monday at 09:00 UTC. Leadership can use **Send Weekly Report Now** to test the webhook. The web service must be running during the configured hour for the built-in scheduler to send.
 
 `COMMAND_ROLE_IDS` and `LEADERSHIP_ROLE_IDS` are comma-separated Discord role IDs. Leadership users automatically get Command permissions too. The bot token is used to read signed-in member roles and send optional DMs, so the bot must be in the Five999 Discord server.
 

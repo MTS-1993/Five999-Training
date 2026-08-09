@@ -34,5 +34,15 @@ services:
         value: "false"
       - key: FMS_SYNC_WEBHOOK_URL
         sync: false
+      - key: PUBLIC_APP_URL
+        sync: false
+      - key: WEEKLY_REPORTS_ENABLED
+        value: "false"
+      - key: WEEKLY_REPORTS_WEBHOOK_URL
+        sync: false
+      - key: WEEKLY_REPORTS_DAY_UTC
+        value: "1"
+      - key: WEEKLY_REPORTS_HOUR_UTC
+        value: "9"
       - key: DATABASE_URL
         sync: false

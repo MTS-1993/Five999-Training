@@ -146,6 +146,8 @@ const exportFilteredCompletions = document.getElementById("exportFilteredComplet
 const exportExpiryReport = document.getElementById("exportExpiryReport");
 const exportOutstandingReport = document.getElementById("exportOutstandingReport");
 const exportSyncFailures = document.getElementById("exportSyncFailures");
+const sendWeeklyReportNow = document.getElementById("sendWeeklyReportNow");
+const weeklyReportResult = document.getElementById("weeklyReportResult");
 const exportTrainingsButton = document.getElementById("exportTrainingsButton");
 const importTrainingsButton = document.getElementById("importTrainingsButton");
 const importTrainingsFile = document.getElementById("importTrainingsFile");
@@ -1525,10 +1527,12 @@ function renderProfile() {
                 <h4>${escapeHtml(course.title)}</h4>
                 <p>${escapeHtml(course.service)} / ${escapeHtml(course.division)}</p>
                 <small>Completed: ${escapeHtml(courseProgress.completedAt || "Recorded")}</small>
+                <small>Certificate: ${escapeHtml(courseProgress.certificateRef || "Generating reference…")}</small>
               </div>
               <div class="certificate-library-actions">
                 <button class="primary-button" type="button" data-certificate-png="${escapeHtml(course.id)}">PNG</button>
                 <button class="ghost-button" type="button" data-certificate-pdf="${escapeHtml(course.id)}">PDF</button>
+                ${courseProgress.certificateRef ? `<a class="ghost-button" href="/verify/${encodeURIComponent(courseProgress.certificateRef)}" target="_blank" rel="noopener">Verify</a>` : ""}
               </div>
             </article>
           `;
@@ -1661,6 +1665,10 @@ function renderCompletion(course) {
         <p class="eyebrow">Completed</p>
         <strong>${escapeHtml(courseProgress.completedAt)}</strong>
       </div>
+      <div>
+        <p class="eyebrow">Certificate reference</p>
+        <strong>${escapeHtml(courseProgress.certificateRef || "Generating…")}</strong>
+      </div>
     </div>
     <p class="certificate-status">${escapeHtml(fmsText)}</p>
     <p class="certificate-status">Your FMS training group will handle any linked role allocation automatically.</p>
@@ -1668,7 +1676,7 @@ function renderCompletion(course) {
   feedbackRating.value = courseProgress.feedback?.rating || "";
   feedbackComment.value = courseProgress.feedback?.comment || "";
   feedbackResult.textContent = courseProgress.feedback ? "Feedback saved. Thank you." : "";
-  const previewKey = `${course.id}:${courseProgress.completedAt || ""}:${courseProgress.quizScore ?? "no-quiz"}`;
+  const previewKey = `${course.id}:${courseProgress.completedAt || ""}:${courseProgress.quizScore ?? "no-quiz"}:${courseProgress.certificateRef || "pending"}`;
   const cachedPreview = certificatePreviewCache.get(previewKey);
   if (cachedPreview) {
     certificatePreview.src = cachedPreview;
@@ -1775,6 +1783,20 @@ async function createCertificateCanvas(courseId = selectedCourseId) {
 
   ctx.font = "28px Arial";
   ctx.fillText(`Completed on ${courseProgress.completedAt || new Date().toLocaleDateString("en-GB")}`, 800, 925);
+
+  if (courseProgress.certificateRef) {
+    try {
+      const qr = await loadImage(`/api/certificates/${encodeURIComponent(courseProgress.certificateRef)}/qr.svg`);
+      ctx.drawImage(qr, 1280, 790, 150, 150);
+      ctx.fillStyle = "#071b2c";
+      ctx.font = "bold 16px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText(courseProgress.certificateRef, 1355, 960);
+      ctx.textAlign = "center";
+    } catch {
+      // The certificate remains downloadable if QR rendering is temporarily unavailable.
+    }
+  }
 
   ctx.fillStyle = "#5d6f7b";
   ctx.font = "24px Arial";
@@ -2200,6 +2222,19 @@ exportFilteredCompletions.addEventListener("click", exportFilteredCompletionRepo
 exportExpiryReport.addEventListener("click", exportTrainingExpiryReport);
 exportOutstandingReport.addEventListener("click", exportOutstandingTrainingReport);
 exportSyncFailures.addEventListener("click", exportRoleSyncFailureReport);
+sendWeeklyReportNow.addEventListener("click", async () => {
+  sendWeeklyReportNow.disabled = true;
+  weeklyReportResult.textContent = "Sending weekly leadership report…";
+  try {
+    const response = await api("/api/reports/weekly/send", { method: "POST", body: "{}" });
+    const summary = response.summary || {};
+    weeklyReportResult.textContent = `Weekly report sent: ${summary.weeklyCompletions || 0} completions, ${summary.outstanding || 0} outstanding, ${summary.expiringSoon || 0} expiring soon, and ${summary.syncFailures || 0} sync failures.`;
+  } catch (error) {
+    weeklyReportResult.textContent = error.message || "Weekly report could not be sent.";
+  } finally {
+    sendWeeklyReportNow.disabled = false;
+  }
+});
 
 statsPracticalBody.addEventListener("click", (event) => {
   const passButton = event.target.closest("[data-practical-pass]");

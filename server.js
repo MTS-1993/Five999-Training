@@ -3,6 +3,7 @@ const fs = require("fs/promises");
 const path = require("path");
 const express = require("express");
 const { Pool } = require("pg");
+const QRCode = require("qrcode");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -41,9 +42,20 @@ const {
   FMS_API_TOKEN_PREFIX = "",
   FMS_SYNC_DEBUG = "false",
   FMS_SYNC_WEBHOOK_URL = "",
+  PUBLIC_APP_URL = "",
+  WEEKLY_REPORTS_ENABLED = "false",
+  WEEKLY_REPORTS_WEBHOOK_URL = "",
+  WEEKLY_REPORTS_DAY_UTC = "1",
+  WEEKLY_REPORTS_HOUR_UTC = "9",
   DATABASE_URL,
   SESSION_SECRET = "replace-this-session-secret-before-production",
 } = process.env;
+
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;",
+  }[character]));
+}
 
 const DISCORD_CLIENT_ID = cleanEnvironmentValue(RAW_DISCORD_CLIENT_ID);
 const DISCORD_CLIENT_SECRET = cleanEnvironmentValue(RAW_DISCORD_CLIENT_SECRET);
@@ -637,8 +649,9 @@ async function getProgress(user) {
   const progress = await getStoredProgress(user);
   const courses = await getCourses();
   const mergedProgress = await importFmsTrainingProgress(user, progress, courses);
+  const referencesChanged = ensureCertificateReferences(mergedProgress, progress);
 
-  if (mergedProgress !== progress) {
+  if (mergedProgress !== progress || referencesChanged) {
     await saveProgress(user, mergedProgress);
   }
 
@@ -1242,6 +1255,69 @@ function buildStats(courses, progressRows) {
   };
 }
 
+function reportTimestamp(value) {
+  const direct = Date.parse(value);
+  if (!Number.isNaN(direct)) return direct;
+  const match = String(value || "").match(/(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{4})/);
+  return match ? new Date(Date.UTC(Number(match[3]), Number(match[2]) - 1, Number(match[1]))).getTime() : 0;
+}
+
+async function sendWeeklyLeadershipReport(actor = { id: "scheduler", username: "Weekly scheduler", globalName: "Weekly scheduler" }) {
+  const webhookUrl = cleanEnvironmentValue(WEEKLY_REPORTS_WEBHOOK_URL);
+  if (!webhookUrl) throw Object.assign(new Error("WEEKLY_REPORTS_WEBHOOK_URL is not configured."), { status: 400 });
+  const [courses, rows, syncHistory] = await Promise.all([getCourses(), getAllProgressRows(), getFmsSyncHistory()]);
+  const stats = buildStats(courses, rows);
+  const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const weeklyCompletions = stats.users.flatMap((user) => user.history || []).filter((item) => item.status === "Completed" && reportTimestamp(item.completedAt) >= cutoff).length;
+  const outstanding = stats.users.flatMap((user) => user.history || []).filter((item) => item.status !== "Completed").length;
+  const datedCourses = courses.filter((course) => course.fmsTrainingExpiryDate);
+  const expiredCourses = datedCourses.filter((course) => new Date(`${course.fmsTrainingExpiryDate}T23:59:59Z`).getTime() < Date.now()).length;
+  const expiringSoon = datedCourses.filter((course) => {
+    const expiry = new Date(`${course.fmsTrainingExpiryDate}T23:59:59Z`).getTime();
+    return expiry >= Date.now() && expiry <= Date.now() + 30 * 24 * 60 * 60 * 1000;
+  }).length;
+  const weeklyFailures = syncHistory.filter((item) => (item.status === "failed" || item.status === "partial") && new Date(item.createdAt).getTime() >= cutoff);
+  const failurePreview = weeklyFailures.slice(0, 8).map((item) => `${item.playerName}: ${item.error || item.failures?.[0]?.message || item.failures?.[0] || item.status}`).join("\n") || "None";
+  const embed = {
+    title: "Five999 Weekly Training Report",
+    description: `Training oversight summary for the seven days ending ${new Date().toLocaleDateString("en-GB", { timeZone: "UTC" })}.`,
+    color: weeklyFailures.length ? 0xd49b16 : 0x159455,
+    fields: [
+      { name: "Compliance", value: `Players tracked: **${stats.totals.users}**\nOutstanding saved training: **${outstanding}**`, inline: true },
+      { name: "Completions", value: `This week: **${weeklyCompletions}**\nAll recorded: **${stats.totals.completions}**`, inline: true },
+      { name: "Expiry", value: `Expired course dates: **${expiredCourses}**\nDue within 30 days: **${expiringSoon}**`, inline: true },
+      { name: "FMS role-sync failures", value: `This week: **${weeklyFailures.length}**\n${failurePreview}`.slice(0, 1024), inline: false },
+    ],
+    footer: { text: `Sent by ${actor.globalName || actor.username || "Weekly scheduler"}` },
+    timestamp: new Date().toISOString(),
+  };
+  const response = await fetch(webhookUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ embeds: [embed] }) });
+  if (!response.ok) throw Object.assign(new Error(`Weekly report webhook returned HTTP ${response.status}.`), { status: 502 });
+  await writeAuditLog(actor, actor.id === "scheduler" ? "weekly_report_sent" : "weekly_report_sent_manual", {}, { weeklyCompletions, outstanding, expiredCourses, expiringSoon, syncFailures: weeklyFailures.length });
+  return { weeklyCompletions, outstanding, expiredCourses, expiringSoon, syncFailures: weeklyFailures.length };
+}
+
+async function weeklyReportSentRecently() {
+  let latest = null;
+  if (pool) {
+    await ensureDatabase();
+    const result = await pool.query("select created_at from training_audit_log where action = 'weekly_report_sent' order by created_at desc limit 1");
+    latest = result.rows[0]?.created_at || null;
+  } else {
+    latest = (await readAuditFileStore()).filter((entry) => entry.action === "weekly_report_sent").at(-1)?.createdAt || null;
+  }
+  return latest ? Date.now() - new Date(latest).getTime() < 6 * 24 * 60 * 60 * 1000 : false;
+}
+
+async function checkWeeklyReportSchedule() {
+  if (WEEKLY_REPORTS_ENABLED !== "true" || !cleanEnvironmentValue(WEEKLY_REPORTS_WEBHOOK_URL)) return;
+  const now = new Date();
+  const configuredDay = Math.min(6, Math.max(0, Number(WEEKLY_REPORTS_DAY_UTC) || 0));
+  const configuredHour = Math.min(23, Math.max(0, Number(WEEKLY_REPORTS_HOUR_UTC) || 0));
+  if (now.getUTCDay() !== configuredDay || now.getUTCHours() !== configuredHour || await weeklyReportSentRecently()) return;
+  await sendWeeklyLeadershipReport().catch((error) => console.error("[F999 Training] Weekly report failed:", error.message));
+}
+
 function protectPracticalProgress(oldProgress, nextProgress, courses) {
   const practicalCourseIds = new Set(courses.filter((course) => course.practicalRequired).map((course) => course.id));
   for (const courseId of practicalCourseIds) {
@@ -1260,6 +1336,27 @@ function protectPracticalProgress(oldProgress, nextProgress, courses) {
     }
   }
   return nextProgress;
+}
+
+function createCertificateReference() {
+  const token = crypto.randomUUID().replaceAll("-", "").slice(0, 12).toUpperCase();
+  return `F999-${token.slice(0, 4)}-${token.slice(4, 8)}-${token.slice(8, 12)}`;
+}
+
+function ensureCertificateReferences(progress, existingProgress = {}) {
+  let changed = false;
+  for (const [courseId, item] of Object.entries(progress || {})) {
+    if (!item?.passed) continue;
+    const existingReference = String(existingProgress?.[courseId]?.certificateRef || "").trim();
+    if (existingReference && item.certificateRef !== existingReference) {
+      item.certificateRef = existingReference;
+      changed = true;
+    } else if (!existingReference) {
+      item.certificateRef = createCertificateReference();
+      changed = true;
+    }
+  }
+  return changed;
 }
 
 async function updateCoursesForUser(user, access, rawCourses, auditAction = "training_save") {
@@ -1367,11 +1464,69 @@ async function saveProgressRow(row, progress) {
   await writeFileStore(data);
 }
 
+async function findCertificate(reference) {
+  const normalized = String(reference || "").trim().toUpperCase();
+  if (!/^F999-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(normalized)) return null;
+  const [courses, rows] = await Promise.all([getCourses(), getAllProgressRows()]);
+  const courseMap = new Map(courses.map((course) => [course.id, course]));
+  for (const row of rows) {
+    for (const [courseId, item] of Object.entries(row.progress || {})) {
+      if (item?.passed && String(item.certificateRef || "").toUpperCase() === normalized) {
+        const course = courseMap.get(courseId);
+        if (!course) return null;
+        return {
+          reference: normalized,
+          valid: true,
+          playerName: row.username || "Unknown user",
+          courseTitle: course.title,
+          service: course.service,
+          division: course.division,
+          completedAt: item.completedAt || "Recorded",
+          score: typeof item.quizScore === "number" ? item.quizScore : null,
+        };
+      }
+    }
+  }
+  return null;
+}
+
+function publicBaseUrl(req) {
+  return cleanEnvironmentValue(PUBLIC_APP_URL).replace(/\/+$/, "") || `${req.protocol}://${req.get("host")}`;
+}
+
+app.get("/api/certificates/:reference", async (req, res, next) => {
+  try {
+    const certificate = await findCertificate(req.params.reference);
+    if (!certificate) return res.status(404).json({ valid: false, error: "Certificate not found or no longer valid." });
+    res.json({ ...certificate, verificationUrl: `${publicBaseUrl(req)}/verify/${encodeURIComponent(certificate.reference)}` });
+  } catch (error) { next(error); }
+});
+
+app.get("/api/certificates/:reference/qr.svg", async (req, res, next) => {
+  try {
+    const certificate = await findCertificate(req.params.reference);
+    if (!certificate) return res.status(404).send("Certificate not found.");
+    const url = `${publicBaseUrl(req)}/verify/${encodeURIComponent(certificate.reference)}`;
+    const svg = await QRCode.toString(url, { type: "svg", margin: 1, width: 220, color: { dark: "#071b2cff", light: "#ffffffff" } });
+    res.type("image/svg+xml").set("Cache-Control", "public, max-age=3600").send(svg);
+  } catch (error) { next(error); }
+});
+
+app.get("/verify/:reference", async (req, res, next) => {
+  try {
+    const certificate = await findCertificate(req.params.reference);
+    const valid = Boolean(certificate);
+    const title = valid ? "Certificate verified" : "Certificate not found";
+    res.type("html").send(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title} | Five999 Training</title><style>body{margin:0;font-family:Arial,sans-serif;background:#071b2c;color:#172c3e;min-height:100vh;display:grid;place-items:center;padding:24px;box-sizing:border-box}.card{background:#fff;border-radius:22px;padding:36px;max-width:680px;width:100%;box-shadow:0 24px 70px #0008;border-top:8px solid ${valid ? "#159455" : "#d21f2b"}}h1{margin-top:0;color:${valid ? "#137447" : "#a51e27"}}dl{display:grid;grid-template-columns:160px 1fr;gap:12px;margin:28px 0}dt{font-weight:bold;color:#586b7a}dd{margin:0}code{background:#edf3f7;padding:7px 10px;border-radius:8px}small{color:#657685}@media(max-width:520px){dl{grid-template-columns:1fr;gap:4px}.card{padding:24px}}</style></head><body><main class="card"><p>Five999 Training Hub</p><h1>${escapeHtml(title)}</h1>${valid ? `<p>This training certificate is authentic and currently recorded.</p><dl><dt>Certificate</dt><dd><code>${escapeHtml(certificate.reference)}</code></dd><dt>Player</dt><dd>${escapeHtml(certificate.playerName)}</dd><dt>Training</dt><dd>${escapeHtml(certificate.courseTitle)}</dd><dt>Service</dt><dd>${escapeHtml(certificate.service)}</dd><dt>Division</dt><dd>${escapeHtml(certificate.division)}</dd><dt>Completed</dt><dd>${escapeHtml(certificate.completedAt)}</dd><dt>Score</dt><dd>${certificate.score === null ? "Not applicable" : `${certificate.score}%`}</dd></dl>` : `<p>This reference does not match a current completed training record.</p>`}<small>Verification only confirms the training record currently held by Five999.</small></main></body></html>`);
+  } catch (error) { next(error); }
+});
+
 app.get("/api/config", (req, res) => {
   res.json({
     authConfigured: Boolean(DISCORD_CLIENT_ID && DISCORD_CLIENT_SECRET && DISCORD_REDIRECT_URI),
     roleChecksConfigured: Boolean(DISCORD_GUILD_ID && DISCORD_BOT_TOKEN),
     dmNotificationsConfigured: DISCORD_DM_NOTIFICATIONS === "true" && Boolean(DISCORD_BOT_TOKEN),
+    weeklyReportsConfigured: WEEKLY_REPORTS_ENABLED === "true" && Boolean(cleanEnvironmentValue(WEEKLY_REPORTS_WEBHOOK_URL)),
   });
 });
 
@@ -1511,6 +1666,14 @@ app.get("/api/fms-sync-history", requireUser, async (req, res, next) => {
   }
 });
 
+app.post("/api/reports/weekly/send", requireUser, async (req, res, next) => {
+  try {
+    const access = await getAccess(req.user);
+    if (!access.leadership) return res.status(403).json({ error: "Leadership role required." });
+    res.json({ ok: true, summary: await sendWeeklyLeadershipReport(req.user) });
+  } catch (error) { next(error); }
+});
+
 app.post("/api/practical-assessments", requireUser, async (req, res, next) => {
   try {
     const access = await getAccess(req.user);
@@ -1557,6 +1720,7 @@ app.post("/api/practical-assessments", requireUser, async (req, res, next) => {
     if (status === "passed") {
       courseProgress.passed = true;
       courseProgress.completedAt = courseProgress.practicalAssessedAt;
+      ensureCertificateReferences(nextProgress, oldProgress);
     } else {
       courseProgress.passed = false;
       courseProgress.completedAt = null;
@@ -1778,6 +1942,7 @@ app.put("/api/progress", requireUser, async (req, res, next) => {
     const nextProgress = req.body.progress || {};
     const courses = await getCourses();
     const protectedProgress = protectPracticalProgress(oldProgress, nextProgress, courses);
+    ensureCertificateReferences(protectedProgress, oldProgress);
     await syncNewFmsTheoryPasses(req.user, oldProgress, protectedProgress, courses);
     await syncNewFmsCompletions(req.user, oldProgress, protectedProgress, courses);
     await saveProgress(req.user, protectedProgress);
@@ -1904,4 +2069,7 @@ app.use((error, req, res, next) => {
 
 app.listen(PORT, () => {
   console.log(`Five999 training dashboard running on port ${PORT}`);
+  checkWeeklyReportSchedule().catch(console.error);
+  const weeklyReportTimer = setInterval(() => checkWeeklyReportSchedule().catch(console.error), 15 * 60 * 1000);
+  weeklyReportTimer.unref();
 });
