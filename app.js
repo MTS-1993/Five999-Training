@@ -39,6 +39,7 @@ let adminMode = false;
 let adminView = "editor";
 let statsLoaded = false;
 let courseSearchTerm = "";
+let completedPlayerSearchTerm = "";
 let latestStats = null;
 const certificatePreviewCache = new Map();
 const pendingCertificatePreviews = new Set();
@@ -113,6 +114,10 @@ const fmsResyncResult = document.getElementById("fmsResyncResult");
 const fmsSyncStatus = document.getElementById("fmsSyncStatus");
 const fmsSyncStatusLabel = document.getElementById("fmsSyncStatusLabel");
 const fmsSyncElapsed = document.getElementById("fmsSyncElapsed");
+const leadershipCompletions = document.getElementById("leadershipCompletions");
+const completedPlayerSearch = document.getElementById("completedPlayerSearch");
+const completedTrainingCount = document.getElementById("completedTrainingCount");
+const completedTrainingsBody = document.getElementById("completedTrainingsBody");
 const exportTrainingsButton = document.getElementById("exportTrainingsButton");
 const importTrainingsButton = document.getElementById("importTrainingsButton");
 const importTrainingsFile = document.getElementById("importTrainingsFile");
@@ -772,6 +777,7 @@ function renderManagement() {
   if (!canManageTrainings() || !adminMode) return;
 
   analyticsPanel.hidden = adminView !== "analytics";
+  leadershipCompletions.hidden = adminView !== "analytics" || !currentAccess?.leadership;
   editorPanel.hidden = adminView !== "editor";
   courseTitle.textContent = adminView === "analytics" ? "Training Analytics" : "Training Management";
   courseTag.textContent = "Command Area";
@@ -831,10 +837,63 @@ function renderEmptyStats(message) {
   statsSummary.innerHTML = `<div class="stat-card"><span>Status</span><strong>${escapeHtml(message)}</strong></div>`;
   statsCourseBody.innerHTML = `<tr><td colspan="6">${escapeHtml(message)}</td></tr>`;
   statsUserBody.innerHTML = `<tr><td colspan="8">${escapeHtml(message)}</td></tr>`;
+  completedTrainingsBody.innerHTML = `<tr><td colspan="6">${escapeHtml(message)}</td></tr>`;
+  completedTrainingCount.textContent = "0 completions";
   statsPracticalBody.innerHTML = `<tr><td colspan="6">${escapeHtml(message)}</td></tr>`;
   statsFeedbackBody.innerHTML = `<tr><td colspan="6">${escapeHtml(message)}</td></tr>`;
   auditLogBody.innerHTML = `<tr><td colspan="6">${escapeHtml(message)}</td></tr>`;
   playerHistoryPanel.hidden = true;
+}
+
+function getCompletedTrainingRows(stats) {
+  return (stats?.users || [])
+    .flatMap((user) => (user.history || [])
+      .filter((item) => item.status === "Completed")
+      .map((item) => ({
+        discordId: user.discordId,
+        username: user.username,
+        courseTitle: item.courseTitle,
+        service: item.service,
+        completedAt: item.completedAt,
+      })))
+    .sort((a, b) => String(b.completedAt || "").localeCompare(String(a.completedAt || "")));
+}
+
+function renderCompletedTrainings(stats) {
+  if (!currentAccess?.leadership) {
+    leadershipCompletions.hidden = true;
+    return;
+  }
+
+  leadershipCompletions.hidden = false;
+  const allRows = getCompletedTrainingRows(stats);
+  const query = completedPlayerSearchTerm.trim().toLocaleLowerCase("en-GB");
+  const rows = query
+    ? allRows.filter((item) =>
+        String(item.username || "").toLocaleLowerCase("en-GB").includes(query)
+        || String(item.discordId || "").includes(query))
+    : allRows;
+
+  completedTrainingCount.textContent = query
+    ? `${rows.length} of ${allRows.length} completions`
+    : `${allRows.length} ${allRows.length === 1 ? "completion" : "completions"}`;
+  completedTrainingsBody.innerHTML = rows.length
+    ? rows.map((item) => `
+        <tr>
+          <td>${escapeHtml(item.username || "Unknown user")}</td>
+          <td><code>${escapeHtml(item.discordId || "Unknown")}</code></td>
+          <td>${escapeHtml(item.courseTitle)}</td>
+          <td>${escapeHtml(item.service)}</td>
+          <td>${escapeHtml(item.completedAt || "Unknown")}</td>
+          <td>
+            <div class="table-actions">
+              <button class="ghost-button" type="button" data-player-history="${escapeHtml(item.discordId)}">View Profile</button>
+              <button class="ghost-button" type="button" data-fms-resync="${escapeHtml(item.discordId)}">Re-sync Roles</button>
+            </div>
+          </td>
+        </tr>
+      `).join("")
+    : `<tr><td colspan="6">${query ? "No players match that name or Discord ID." : "No completed trainings have been recorded yet."}</td></tr>`;
 }
 
 function renderPlayerHistory(user) {
@@ -887,6 +946,7 @@ function renderPlayerHistory(user) {
 
 function renderStats(stats) {
   latestStats = stats;
+  renderCompletedTrainings(stats);
   const totals = stats.totals || {};
   statsSummary.innerHTML = `
     <div class="stat-card"><span>Users tracked</span><strong>${totals.users || 0}</strong></div>
@@ -1902,6 +1962,33 @@ statsUserBody.addEventListener("click", (event) => {
   if (user) {
     playerHistoryPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
+});
+
+completedPlayerSearch.addEventListener("input", () => {
+  completedPlayerSearchTerm = completedPlayerSearch.value;
+  renderCompletedTrainings(latestStats);
+});
+
+completedTrainingsBody.addEventListener("click", (event) => {
+  const clickedElement = event.target instanceof Element ? event.target : null;
+  if (!clickedElement) return;
+
+  const resyncButton = clickedElement.closest("[data-fms-resync]");
+  if (resyncButton) {
+    event.preventDefault();
+    resyncFmsRoles(resyncButton.dataset.fmsResync, resyncButton).catch((error) => {
+      fmsResyncResult.textContent = error.message || "Role re-sync failed.";
+    });
+    return;
+  }
+
+  const profileButton = clickedElement.closest("[data-player-history]");
+  if (!profileButton) return;
+  event.preventDefault();
+  const requestedId = String(profileButton.dataset.playerHistory || "").trim();
+  const user = (latestStats?.users || []).find((item) => String(item.discordId || "").trim() === requestedId);
+  renderPlayerHistory(user);
+  if (user) playerHistoryPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
 });
 
 statsPracticalBody.addEventListener("click", (event) => {

@@ -1162,6 +1162,28 @@ h2 {
   background: var(--surface-2);
 }
 
+.leadership-completions {
+  margin-top: 24px;
+  padding: 22px;
+  border: 1px solid rgba(20, 74, 122, 0.16);
+  border-radius: 18px;
+  background: rgba(239, 247, 255, 0.72);
+}
+
+.leadership-completions[hidden] {
+  display: none;
+}
+
+.leadership-completions > input[type="search"] {
+  width: min(100%, 560px);
+  margin-bottom: 16px;
+}
+
+.dark-theme .leadership-completions {
+  border-color: rgba(126, 187, 242, 0.2);
+  background: rgba(15, 39, 62, 0.62);
+}
+
 .analytics-detail-panel {
   display: grid;
   gap: 12px;

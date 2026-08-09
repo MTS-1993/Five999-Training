@@ -37,6 +37,7 @@ Only people with that complete URL can load the training. It is omitted from the
 - Audit log for training edits, imports, exports, and practical assessments
 - Bulk training import/export plus analytics CSV export
 - Clickable player profiles in analytics with full training history
+- Separate Leadership completed-trainings view with player search by name or Discord ID and FMS role re-sync actions
 - Training feedback table in Command analytics
 - Optional image URLs and resource URLs for trainings and modules
 - Uploaded images for trainings and modules, stored with the training record

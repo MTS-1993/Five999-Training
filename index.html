@@ -261,6 +261,38 @@
             </div>
             <p class="result-text" id="fmsResyncResult"></p>
             <div class="stats-grid" id="statsSummary"></div>
+            <section class="leadership-completions" id="leadershipCompletions" hidden>
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Leadership team</p>
+                  <h3>Completed Trainings</h3>
+                  <p class="section-subtitle">Find a player, review each completed training, and re-sync their FMS roles.</p>
+                </div>
+                <span class="score-pill" id="completedTrainingCount">0 completions</span>
+              </div>
+              <label class="field-label" for="completedPlayerSearch">Search player</label>
+              <input
+                id="completedPlayerSearch"
+                type="search"
+                placeholder="Search by player name or Discord ID"
+                autocomplete="off"
+              />
+              <div class="analytics-table-wrap">
+                <table class="analytics-table">
+                  <thead>
+                    <tr>
+                      <th>Player</th>
+                      <th>Discord ID</th>
+                      <th>Training</th>
+                      <th>Service</th>
+                      <th>Completed</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="completedTrainingsBody"></tbody>
+                </table>
+              </div>
+            </section>
             <div class="analytics-table-wrap">
               <h3>Course Completion</h3>
               <table class="analytics-table">
