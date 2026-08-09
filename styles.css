@@ -1179,10 +1179,65 @@ h2 {
   margin-bottom: 16px;
 }
 
+.completion-filters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
+  gap: 12px;
+  margin: 10px 0 16px;
+}
+
+.completion-filters label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted-text, #52677a);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.leadership-bulk-actions,
+.reporting-actions,
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.pagination-controls {
+  justify-content: center;
+}
+
+.reporting-actions h4 {
+  width: 100%;
+  margin: 6px 0 0;
+}
+
+.sync-status {
+  display: inline-flex;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: #e7edf3;
+  color: #42586b;
+  font-size: 0.78rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.sync-status--success { background: #daf5e5; color: #17653a; }
+.sync-status--partial { background: #fff0c7; color: #815800; }
+.sync-status--failed { background: #ffe0df; color: #9b2925; }
+
+@media (max-width: 900px) {
+  .completion-filters { grid-template-columns: 1fr; }
+}
+
 .dark-theme .leadership-completions {
   border-color: rgba(126, 187, 242, 0.2);
   background: rgba(15, 39, 62, 0.62);
 }
+
+.dark-theme .sync-status--never { background: #293c4f; color: #c9d6e2; }
 
 .analytics-detail-panel {
   display: grid;

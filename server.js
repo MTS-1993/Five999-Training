@@ -577,6 +577,49 @@ async function getAuditLog(access) {
   return rows.filter((entry) => !entry.service || canManageService(access, entry.service));
 }
 
+async function getFmsSyncHistory() {
+  let rows;
+  if (pool) {
+    await ensureDatabase();
+    const result = await pool.query(`
+      select actor_discord_id, actor_name, action, details, created_at
+      from training_audit_log
+      where action in ('fms_role_resync', 'fms_role_resync_failed')
+      order by created_at desc
+      limit 500
+    `);
+    rows = result.rows.map((row) => ({
+      actorDiscordId: row.actor_discord_id,
+      actorName: row.actor_name,
+      action: row.action,
+      details: row.details || {},
+      createdAt: row.created_at,
+    }));
+  } else {
+    rows = (await readAuditFileStore())
+      .filter((entry) => ["fms_role_resync", "fms_role_resync_failed"].includes(entry.action))
+      .slice(-500)
+      .reverse();
+  }
+
+  return rows.map((entry) => ({
+    id: `${new Date(entry.createdAt).getTime()}-${entry.details?.playerDiscordId || "unknown"}`,
+    actorDiscordId: entry.actorDiscordId,
+    actorName: entry.actorName,
+    playerDiscordId: entry.details?.playerDiscordId || "",
+    playerName: entry.details?.playerName || "Unknown user",
+    status: entry.details?.status || (entry.action === "fms_role_resync_failed" ? "failed" : "success"),
+    added: Number(entry.details?.added || 0),
+    skipped: Number(entry.details?.skipped || 0),
+    failed: Number(entry.details?.failed || 0),
+    checked: Number(entry.details?.checked || 0),
+    syncId: entry.details?.syncId || "",
+    error: entry.details?.error || "",
+    failures: Array.isArray(entry.details?.failures) ? entry.details.failures : [],
+    createdAt: entry.createdAt,
+  }));
+}
+
 async function getStoredProgress(user) {
   if (pool) {
     await ensureDatabase();
@@ -1455,6 +1498,19 @@ app.get("/api/audit-log", requireUser, async (req, res, next) => {
   }
 });
 
+app.get("/api/fms-sync-history", requireUser, async (req, res, next) => {
+  try {
+    const access = await getAccess(req.user);
+    if (!access.leadership) {
+      res.status(403).json({ error: "Leadership role required." });
+      return;
+    }
+    res.json({ history: await getFmsSyncHistory() });
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.post("/api/practical-assessments", requireUser, async (req, res, next) => {
   try {
     const access = await getAccess(req.user);
@@ -1597,6 +1653,14 @@ app.post("/api/fms-role-resync", requireUser, async (req, res, next) => {
     } catch (error) {
       const issue = error.likelyCause || explainFmsError(error);
       fmsSyncLog(syncId, "Aborted", "Role re-sync could not start", { player: row.username, discordId: row.discordId, error: error.message, likelyCause: issue }, "error");
+      await writeAuditLog(req.user, "fms_role_resync_failed", {}, {
+        playerDiscordId: row.discordId,
+        playerName: row.username || "Unknown user",
+        status: "failed",
+        error: error.message,
+        failures: [issue],
+        syncId,
+      });
       res.status(error.code === "INVALID_DISCORD_ID" ? 400 : 503).json({ error: error.message, issue, syncId });
       return;
     }
@@ -1608,12 +1672,92 @@ app.post("/api/fms-role-resync", requireUser, async (req, res, next) => {
       skipped: result.skipped,
       failed: result.failed,
       checked: result.checked,
+      status: result.failed ? (result.added || result.skipped ? "partial" : "failed") : "success",
+      syncId: result.syncId || syncId,
+      failures: (result.details || []).filter((item) => item.status === "failed").map((item) => ({
+        courseTitle: item.courseTitle,
+        type: item.type,
+        message: item.issue || item.message || "Unknown failure",
+        statusCode: item.statusCode || null,
+      })),
     });
 
     res.json({
       ok: true,
       result,
       stats: buildStats(courses, await getAllProgressRows()),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/fms-role-resync/bulk", requireUser, async (req, res, next) => {
+  try {
+    const access = await getAccess(req.user);
+    if (!access.leadership) {
+      res.status(403).json({ error: "Leadership role required." });
+      return;
+    }
+
+    const discordIds = [...new Set((Array.isArray(req.body?.discordIds) ? req.body.discordIds : [])
+      .map((id) => String(id || "").trim())
+      .filter(Boolean))];
+    if (!discordIds.length) {
+      res.status(400).json({ error: "Select at least one player to re-sync." });
+      return;
+    }
+
+    const rows = await getAllProgressRows();
+    const rowsById = new Map(rows.map((row) => [String(row.discordId || "").trim(), row]));
+    const courses = await getCourses();
+    const results = [];
+
+    for (const discordId of discordIds) {
+      const row = rowsById.get(discordId);
+      if (!row) {
+        results.push({ discordId, playerName: "Unknown user", status: "failed", error: "Player progress was not found." });
+        continue;
+      }
+      const syncId = crypto.randomUUID().slice(0, 8);
+      try {
+        const synced = await resyncFmsTrainingGroupsForRow(row, courses, syncId);
+        await saveProgressRow(row, synced.progress);
+        const status = synced.result.failed ? (synced.result.added || synced.result.skipped ? "partial" : "failed") : "success";
+        const failures = (synced.result.details || []).filter((item) => item.status === "failed").map((item) => ({
+          courseTitle: item.courseTitle,
+          type: item.type,
+          message: item.issue || item.message || "Unknown failure",
+          statusCode: item.statusCode || null,
+        }));
+        await writeAuditLog(req.user, status === "failed" ? "fms_role_resync_failed" : "fms_role_resync", {}, {
+          playerDiscordId: row.discordId, playerName: row.username || "Unknown user", status, syncId,
+          added: synced.result.added, skipped: synced.result.skipped, failed: synced.result.failed,
+          checked: synced.result.checked, failures,
+        });
+        results.push({ discordId, playerName: row.username, status, ...synced.result });
+      } catch (error) {
+        const issue = error.likelyCause || explainFmsError(error);
+        await writeAuditLog(req.user, "fms_role_resync_failed", {}, {
+          playerDiscordId: row.discordId, playerName: row.username || "Unknown user", status: "failed",
+          error: error.message, failures: [issue], syncId,
+        });
+        results.push({ discordId, playerName: row.username, status: "failed", error: error.message, issue, syncId });
+      }
+    }
+
+    res.json({
+      ok: true,
+      results,
+      summary: {
+        requested: discordIds.length,
+        succeeded: results.filter((item) => item.status === "success").length,
+        partial: results.filter((item) => item.status === "partial").length,
+        failed: results.filter((item) => item.status === "failed").length,
+        added: results.reduce((total, item) => total + Number(item.added || 0), 0),
+      },
+      stats: buildStats(courses, await getAllProgressRows()),
+      history: await getFmsSyncHistory(),
     });
   } catch (error) {
     next(error);

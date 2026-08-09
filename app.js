@@ -40,7 +40,17 @@ let adminView = "editor";
 let statsLoaded = false;
 let courseSearchTerm = "";
 let completedPlayerSearchTerm = "";
+let completedServiceFilterValue = "";
+let completedCourseFilterValue = "";
+let completedSyncFilterValue = "";
+let completedDateFromValue = "";
+let completedDateToValue = "";
+let completedPage = 1;
+const completedPageSize = 25;
+const selectedCompletionPlayers = new Set();
 let latestStats = null;
+let latestSyncHistory = [];
+let filteredCompletionRows = [];
 const certificatePreviewCache = new Map();
 const pendingCertificatePreviews = new Set();
 
@@ -118,6 +128,24 @@ const leadershipCompletions = document.getElementById("leadershipCompletions");
 const completedPlayerSearch = document.getElementById("completedPlayerSearch");
 const completedTrainingCount = document.getElementById("completedTrainingCount");
 const completedTrainingsBody = document.getElementById("completedTrainingsBody");
+const completedServiceFilter = document.getElementById("completedServiceFilter");
+const completedCourseFilter = document.getElementById("completedCourseFilter");
+const completedSyncFilter = document.getElementById("completedSyncFilter");
+const completedDateFrom = document.getElementById("completedDateFrom");
+const completedDateTo = document.getElementById("completedDateTo");
+const selectFilteredCompletions = document.getElementById("selectFilteredCompletions");
+const clearCompletionSelection = document.getElementById("clearCompletionSelection");
+const bulkFmsResyncButton = document.getElementById("bulkFmsResyncButton");
+const bulkFmsResyncResult = document.getElementById("bulkFmsResyncResult");
+const completedPreviousPage = document.getElementById("completedPreviousPage");
+const completedNextPage = document.getElementById("completedNextPage");
+const completedPageStatus = document.getElementById("completedPageStatus");
+const roleSyncHistoryBody = document.getElementById("roleSyncHistoryBody");
+const retryFailedSyncs = document.getElementById("retryFailedSyncs");
+const exportFilteredCompletions = document.getElementById("exportFilteredCompletions");
+const exportExpiryReport = document.getElementById("exportExpiryReport");
+const exportOutstandingReport = document.getElementById("exportOutstandingReport");
+const exportSyncFailures = document.getElementById("exportSyncFailures");
 const exportTrainingsButton = document.getElementById("exportTrainingsButton");
 const importTrainingsButton = document.getElementById("importTrainingsButton");
 const importTrainingsFile = document.getElementById("importTrainingsFile");
@@ -837,8 +865,9 @@ function renderEmptyStats(message) {
   statsSummary.innerHTML = `<div class="stat-card"><span>Status</span><strong>${escapeHtml(message)}</strong></div>`;
   statsCourseBody.innerHTML = `<tr><td colspan="6">${escapeHtml(message)}</td></tr>`;
   statsUserBody.innerHTML = `<tr><td colspan="8">${escapeHtml(message)}</td></tr>`;
-  completedTrainingsBody.innerHTML = `<tr><td colspan="6">${escapeHtml(message)}</td></tr>`;
+  completedTrainingsBody.innerHTML = `<tr><td colspan="8">${escapeHtml(message)}</td></tr>`;
   completedTrainingCount.textContent = "0 completions";
+  roleSyncHistoryBody.innerHTML = `<tr><td colspan="7">${escapeHtml(message)}</td></tr>`;
   statsPracticalBody.innerHTML = `<tr><td colspan="6">${escapeHtml(message)}</td></tr>`;
   statsFeedbackBody.innerHTML = `<tr><td colspan="6">${escapeHtml(message)}</td></tr>`;
   auditLogBody.innerHTML = `<tr><td colspan="6">${escapeHtml(message)}</td></tr>`;
@@ -852,11 +881,43 @@ function getCompletedTrainingRows(stats) {
       .map((item) => ({
         discordId: user.discordId,
         username: user.username,
+        courseId: item.courseId,
         courseTitle: item.courseTitle,
         service: item.service,
         completedAt: item.completedAt,
       })))
     .sort((a, b) => String(b.completedAt || "").localeCompare(String(a.completedAt || "")));
+}
+
+function completionTimestamp(value) {
+  const direct = Date.parse(value);
+  if (!Number.isNaN(direct)) return direct;
+  const match = String(value || "").match(/(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{4})/);
+  return match ? new Date(Number(match[3]), Number(match[2]) - 1, Number(match[1])).getTime() : null;
+}
+
+function latestSyncByPlayer() {
+  const latest = new Map();
+  for (const item of latestSyncHistory) {
+    if (item.playerDiscordId && !latest.has(String(item.playerDiscordId))) latest.set(String(item.playerDiscordId), item);
+  }
+  return latest;
+}
+
+function syncStatusLabel(status) {
+  return status === "success" ? "Successful" : status === "partial" ? "Partial" : status === "failed" ? "Failed" : "Never synced";
+}
+
+function populateCompletionFilters(allRows) {
+  const serviceValue = completedServiceFilter.value;
+  const courseValue = completedCourseFilter.value;
+  const services = [...new Set(allRows.map((row) => row.service).filter(Boolean))].sort();
+  const courseOptions = [...new Map(allRows.map((row) => [row.courseId || row.courseTitle, row.courseTitle])).entries()]
+    .sort((a, b) => a[1].localeCompare(b[1], "en-GB"));
+  completedServiceFilter.innerHTML = `<option value="">All services</option>${services.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join("")}`;
+  completedCourseFilter.innerHTML = `<option value="">All trainings</option>${courseOptions.map(([id, title]) => `<option value="${escapeHtml(id)}">${escapeHtml(title)}</option>`).join("")}`;
+  completedServiceFilter.value = serviceValue;
+  completedCourseFilter.value = courseValue;
 }
 
 function renderCompletedTrainings(stats) {
@@ -867,24 +928,42 @@ function renderCompletedTrainings(stats) {
 
   leadershipCompletions.hidden = false;
   const allRows = getCompletedTrainingRows(stats);
+  populateCompletionFilters(allRows);
+  const syncByPlayer = latestSyncByPlayer();
   const query = completedPlayerSearchTerm.trim().toLocaleLowerCase("en-GB");
-  const rows = query
-    ? allRows.filter((item) =>
-        String(item.username || "").toLocaleLowerCase("en-GB").includes(query)
-        || String(item.discordId || "").includes(query))
-    : allRows;
+  const fromTimestamp = completedDateFromValue ? new Date(`${completedDateFromValue}T00:00:00`).getTime() : null;
+  const toTimestamp = completedDateToValue ? new Date(`${completedDateToValue}T23:59:59`).getTime() : null;
+  filteredCompletionRows = allRows.filter((item) => {
+    const latestSync = syncByPlayer.get(String(item.discordId));
+    const syncStatus = latestSync?.status || "never";
+    const completedTimestamp = completionTimestamp(item.completedAt);
+    return (!query || String(item.username || "").toLocaleLowerCase("en-GB").includes(query) || String(item.discordId || "").includes(query))
+      && (!completedServiceFilterValue || item.service === completedServiceFilterValue)
+      && (!completedCourseFilterValue || (item.courseId || item.courseTitle) === completedCourseFilterValue)
+      && (!completedSyncFilterValue || syncStatus === completedSyncFilterValue)
+      && (!fromTimestamp || (completedTimestamp !== null && completedTimestamp >= fromTimestamp))
+      && (!toTimestamp || (completedTimestamp !== null && completedTimestamp <= toTimestamp));
+  });
+  const totalPages = Math.max(1, Math.ceil(filteredCompletionRows.length / completedPageSize));
+  completedPage = Math.min(completedPage, totalPages);
+  const rows = filteredCompletionRows.slice((completedPage - 1) * completedPageSize, completedPage * completedPageSize);
 
-  completedTrainingCount.textContent = query
-    ? `${rows.length} of ${allRows.length} completions`
-    : `${allRows.length} ${allRows.length === 1 ? "completion" : "completions"}`;
+  completedTrainingCount.textContent = `${filteredCompletionRows.length} of ${allRows.length} completions · ${selectedCompletionPlayers.size} players selected`;
+  completedPageStatus.textContent = `Page ${completedPage} of ${totalPages}`;
+  completedPreviousPage.disabled = completedPage <= 1;
+  completedNextPage.disabled = completedPage >= totalPages;
   completedTrainingsBody.innerHTML = rows.length
-    ? rows.map((item) => `
+    ? rows.map((item) => {
+      const sync = syncByPlayer.get(String(item.discordId));
+      return `
         <tr>
+          <td><input type="checkbox" data-completion-select="${escapeHtml(item.discordId)}" ${selectedCompletionPlayers.has(String(item.discordId)) ? "checked" : ""} aria-label="Select ${escapeHtml(item.username || "player")}" /></td>
           <td>${escapeHtml(item.username || "Unknown user")}</td>
           <td><code>${escapeHtml(item.discordId || "Unknown")}</code></td>
           <td>${escapeHtml(item.courseTitle)}</td>
           <td>${escapeHtml(item.service)}</td>
           <td>${escapeHtml(item.completedAt || "Unknown")}</td>
+          <td><span class="sync-status sync-status--${escapeHtml(sync?.status || "never")}">${escapeHtml(syncStatusLabel(sync?.status))}</span></td>
           <td>
             <div class="table-actions">
               <button class="ghost-button" type="button" data-player-history="${escapeHtml(item.discordId)}">View Profile</button>
@@ -892,8 +971,27 @@ function renderCompletedTrainings(stats) {
             </div>
           </td>
         </tr>
-      `).join("")
-    : `<tr><td colspan="6">${query ? "No players match that name or Discord ID." : "No completed trainings have been recorded yet."}</td></tr>`;
+      `;
+    }).join("")
+    : `<tr><td colspan="8">No completed trainings match the selected filters.</td></tr>`;
+  bulkFmsResyncButton.disabled = selectedCompletionPlayers.size === 0;
+}
+
+function renderRoleSyncHistory(history) {
+  latestSyncHistory = Array.isArray(history) ? history : [];
+  roleSyncHistoryBody.innerHTML = latestSyncHistory.length
+    ? latestSyncHistory.map((item) => `
+      <tr>
+        <td>${escapeHtml(new Date(item.createdAt).toLocaleString("en-GB"))}</td>
+        <td>${escapeHtml(item.playerName)}<br><code>${escapeHtml(item.playerDiscordId)}</code></td>
+        <td>${escapeHtml(item.actorName)}</td>
+        <td><span class="sync-status sync-status--${escapeHtml(item.status)}">${escapeHtml(syncStatusLabel(item.status))}</span></td>
+        <td>${item.added || 0}</td>
+        <td>${escapeHtml(item.error || (item.failures || []).map((failure) => typeof failure === "string" ? failure : failure.message).join("; ") || `Checked ${item.checked || 0}; already present ${item.skipped || 0}`)}</td>
+        <td>${item.status === "failed" || item.status === "partial" ? `<button class="ghost-button" type="button" data-retry-sync="${escapeHtml(item.playerDiscordId)}">Retry</button>` : "—"}</td>
+      </tr>`).join("")
+    : `<tr><td colspan="7">No FMS role-sync attempts have been recorded yet.</td></tr>`;
+  renderCompletedTrainings(latestStats);
 }
 
 function renderPlayerHistory(user) {
@@ -1105,6 +1203,8 @@ async function resyncFmsRoles(discordId, button = null) {
     renderStats(result.stats);
     const audit = await api("/api/audit-log");
     renderAuditLog(audit.auditLog || []);
+    const history = await api("/api/fms-sync-history");
+    renderRoleSyncHistory(history.history || []);
     const summary = result.result || {};
     const failures = Array.isArray(summary.details)
       ? summary.details.filter((item) => item.status === "failed")
@@ -1135,16 +1235,86 @@ async function resyncFmsRoles(discordId, button = null) {
   }
 }
 
+async function bulkResyncFmsRoles(discordIds) {
+  const ids = [...new Set(discordIds.map((id) => String(id || "").trim()).filter(Boolean))];
+  if (!currentAccess?.leadership || !ids.length) return;
+  bulkFmsResyncButton.disabled = true;
+  bulkFmsResyncResult.textContent = `Re-syncing 0 of ${ids.length} players…`;
+  if (fmsSyncStatus) fmsSyncStatus.hidden = false;
+  if (fmsSyncStatusLabel) fmsSyncStatusLabel.textContent = `Bulk role re-sync in progress for ${ids.length} players…`;
+  try {
+    const response = await api("/api/fms-role-resync/bulk", {
+      method: "POST",
+      body: JSON.stringify({ discordIds: ids }),
+    });
+    const summary = response.summary || {};
+    bulkFmsResyncResult.textContent = `Processed ${summary.requested || ids.length} players: ${summary.succeeded || 0} successful, ${summary.partial || 0} partial, ${summary.failed || 0} failed; ${summary.added || 0} roles added.`;
+    selectedCompletionPlayers.clear();
+    renderStats(response.stats);
+    renderRoleSyncHistory(response.history || []);
+    const audit = await api("/api/audit-log");
+    renderAuditLog(audit.auditLog || []);
+    statsLoaded = true;
+  } finally {
+    if (fmsSyncStatus) fmsSyncStatus.hidden = true;
+    bulkFmsResyncButton.disabled = selectedCompletionPlayers.size === 0;
+  }
+}
+
+function downloadCsv(filename, headers, rows) {
+  downloadFile(filename, [headers, ...rows].map((row) => row.map(csvCell).join(",")).join("\n"), "text/csv");
+}
+
+function exportFilteredCompletionReport() {
+  downloadCsv(`five999-filtered-completions-${new Date().toISOString().slice(0, 10)}.csv`,
+    ["Player", "Discord ID", "Training", "Service", "Completed", "Latest Role-sync Status"],
+    filteredCompletionRows.map((row) => {
+      const sync = latestSyncByPlayer().get(String(row.discordId));
+      return [row.username, row.discordId, row.courseTitle, row.service, row.completedAt, syncStatusLabel(sync?.status)];
+    }));
+}
+
+function exportTrainingExpiryReport() {
+  const courseById = new Map(courses.map((course) => [course.id, course]));
+  const rows = getCompletedTrainingRows(latestStats).map((row) => {
+    const expiryDate = courseById.get(row.courseId)?.fmsTrainingExpiryDate || "";
+    const status = !expiryDate ? "No expiry configured" : new Date(`${expiryDate}T23:59:59`) < new Date() ? "Expired" : "Active";
+    return [row.username, row.discordId, row.courseTitle, row.service, row.completedAt, expiryDate, status];
+  });
+  downloadCsv(`five999-training-expiry-${new Date().toISOString().slice(0, 10)}.csv`,
+    ["Player", "Discord ID", "Training", "Service", "Completed", "Expiry Date", "Status"], rows);
+}
+
+function exportOutstandingTrainingReport() {
+  const rows = (latestStats?.users || []).flatMap((user) => (user.history || [])
+    .filter((item) => item.status !== "Completed")
+    .map((item) => [user.username, user.discordId, item.courseTitle, item.service, item.status, item.theoryPassedAt || "", user.updatedAt || ""]));
+  downloadCsv(`five999-outstanding-training-${new Date().toISOString().slice(0, 10)}.csv`,
+    ["Player", "Discord ID", "Training", "Service", "Outstanding Status", "Theory Passed", "Last Updated"], rows);
+}
+
+function exportRoleSyncFailureReport() {
+  const rows = latestSyncHistory.filter((item) => item.status === "failed" || item.status === "partial").map((item) => [
+    item.createdAt, item.playerName, item.playerDiscordId, item.actorName, item.status, item.added, item.failed,
+    item.syncId, item.error || (item.failures || []).map((failure) => typeof failure === "string" ? failure : failure.message).join("; "),
+  ]);
+  downloadCsv(`five999-role-sync-failures-${new Date().toISOString().slice(0, 10)}.csv`,
+    ["Time", "Player", "Discord ID", "Leader", "Status", "Roles Added", "Failures", "Sync ID", "Error Details"], rows);
+}
+
 async function loadStats() {
   if (!canManageTrainings()) return;
   renderEmptyStats("Loading statistics...");
   try {
-    const [result, audit] = await Promise.all([
+    const requests = [
       api("/api/stats"),
       api("/api/audit-log"),
-    ]);
+    ];
+    if (currentAccess?.leadership) requests.push(api("/api/fms-sync-history"));
+    const [result, audit, history] = await Promise.all(requests);
     renderStats(result.stats);
     renderAuditLog(audit.auditLog || []);
+    if (history) renderRoleSyncHistory(history.history || []);
     statsLoaded = true;
   } catch (error) {
     renderEmptyStats(error.message || "Could not load statistics.");
@@ -1966,12 +2136,37 @@ statsUserBody.addEventListener("click", (event) => {
 
 completedPlayerSearch.addEventListener("input", () => {
   completedPlayerSearchTerm = completedPlayerSearch.value;
+  completedPage = 1;
   renderCompletedTrainings(latestStats);
+});
+
+completedServiceFilter.addEventListener("change", () => { completedServiceFilterValue = completedServiceFilter.value; completedPage = 1; renderCompletedTrainings(latestStats); });
+completedCourseFilter.addEventListener("change", () => { completedCourseFilterValue = completedCourseFilter.value; completedPage = 1; renderCompletedTrainings(latestStats); });
+completedSyncFilter.addEventListener("change", () => { completedSyncFilterValue = completedSyncFilter.value; completedPage = 1; renderCompletedTrainings(latestStats); });
+completedDateFrom.addEventListener("change", () => { completedDateFromValue = completedDateFrom.value; completedPage = 1; renderCompletedTrainings(latestStats); });
+completedDateTo.addEventListener("change", () => { completedDateToValue = completedDateTo.value; completedPage = 1; renderCompletedTrainings(latestStats); });
+completedPreviousPage.addEventListener("click", () => { completedPage = Math.max(1, completedPage - 1); renderCompletedTrainings(latestStats); });
+completedNextPage.addEventListener("click", () => { completedPage += 1; renderCompletedTrainings(latestStats); });
+selectFilteredCompletions.addEventListener("click", () => {
+  filteredCompletionRows.forEach((row) => selectedCompletionPlayers.add(String(row.discordId)));
+  renderCompletedTrainings(latestStats);
+});
+clearCompletionSelection.addEventListener("click", () => { selectedCompletionPlayers.clear(); renderCompletedTrainings(latestStats); });
+bulkFmsResyncButton.addEventListener("click", () => {
+  bulkResyncFmsRoles([...selectedCompletionPlayers]).catch((error) => { bulkFmsResyncResult.textContent = error.message || "Bulk role re-sync failed."; });
 });
 
 completedTrainingsBody.addEventListener("click", (event) => {
   const clickedElement = event.target instanceof Element ? event.target : null;
   if (!clickedElement) return;
+
+  const selection = clickedElement.closest("[data-completion-select]");
+  if (selection) {
+    const discordId = String(selection.dataset.completionSelect || "");
+    if (selection.checked) selectedCompletionPlayers.add(discordId); else selectedCompletionPlayers.delete(discordId);
+    renderCompletedTrainings(latestStats);
+    return;
+  }
 
   const resyncButton = clickedElement.closest("[data-fms-resync]");
   if (resyncButton) {
@@ -1990,6 +2185,21 @@ completedTrainingsBody.addEventListener("click", (event) => {
   renderPlayerHistory(user);
   if (user) playerHistoryPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
 });
+
+roleSyncHistoryBody.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-retry-sync]");
+  if (!button) return;
+  bulkResyncFmsRoles([button.dataset.retrySync]).catch((error) => { bulkFmsResyncResult.textContent = error.message || "Retry failed."; });
+});
+retryFailedSyncs.addEventListener("click", () => {
+  const failedIds = [...latestSyncByPlayer().values()].filter((item) => item.status === "failed" || item.status === "partial").map((item) => item.playerDiscordId).filter(Boolean);
+  if (!failedIds.length) { bulkFmsResyncResult.textContent = "There are no failed role syncs to retry."; return; }
+  bulkResyncFmsRoles(failedIds).catch((error) => { bulkFmsResyncResult.textContent = error.message || "Failed sync retry failed."; });
+});
+exportFilteredCompletions.addEventListener("click", exportFilteredCompletionReport);
+exportExpiryReport.addEventListener("click", exportTrainingExpiryReport);
+exportOutstandingReport.addEventListener("click", exportOutstandingTrainingReport);
+exportSyncFailures.addEventListener("click", exportRoleSyncFailureReport);
 
 statsPracticalBody.addEventListener("click", (event) => {
   const passButton = event.target.closest("[data-practical-pass]");

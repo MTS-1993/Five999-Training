@@ -271,25 +271,63 @@
                 <span class="score-pill" id="completedTrainingCount">0 completions</span>
               </div>
               <label class="field-label" for="completedPlayerSearch">Search player</label>
-              <input
-                id="completedPlayerSearch"
-                type="search"
-                placeholder="Search by player name or Discord ID"
-                autocomplete="off"
-              />
+              <div class="completion-filters">
+                <input id="completedPlayerSearch" type="search" placeholder="Player name or Discord ID" autocomplete="off" />
+                <select id="completedServiceFilter" aria-label="Filter by service"><option value="">All services</option></select>
+                <select id="completedCourseFilter" aria-label="Filter by training"><option value="">All trainings</option></select>
+                <select id="completedSyncFilter" aria-label="Filter by role-sync status">
+                  <option value="">All sync statuses</option>
+                  <option value="success">Sync successful</option>
+                  <option value="failed">Sync failed</option>
+                  <option value="partial">Partially synced</option>
+                  <option value="never">Never synced</option>
+                </select>
+                <label>Completed from<input id="completedDateFrom" type="date" /></label>
+                <label>Completed to<input id="completedDateTo" type="date" /></label>
+              </div>
+              <div class="manager-actions leadership-bulk-actions">
+                <button class="ghost-button" id="selectFilteredCompletions" type="button">Select Filtered Players</button>
+                <button class="ghost-button" id="clearCompletionSelection" type="button">Clear Selection</button>
+                <button class="primary-button" id="bulkFmsResyncButton" type="button">Re-sync Selected</button>
+              </div>
+              <p class="result-text" id="bulkFmsResyncResult"></p>
               <div class="analytics-table-wrap">
                 <table class="analytics-table">
                   <thead>
                     <tr>
+                      <th><span class="sr-only">Select</span></th>
                       <th>Player</th>
                       <th>Discord ID</th>
                       <th>Training</th>
                       <th>Service</th>
                       <th>Completed</th>
+                      <th>Role Sync</th>
                       <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody id="completedTrainingsBody"></tbody>
+                </table>
+              </div>
+              <div class="pagination-controls">
+                <button class="ghost-button" id="completedPreviousPage" type="button">Previous</button>
+                <span id="completedPageStatus">Page 1 of 1</span>
+                <button class="ghost-button" id="completedNextPage" type="button">Next</button>
+              </div>
+              <div class="reporting-actions">
+                <h4>Reports</h4>
+                <button class="ghost-button" id="exportFilteredCompletions" type="button">Filtered Completions CSV</button>
+                <button class="ghost-button" id="exportExpiryReport" type="button">Expiry Report CSV</button>
+                <button class="ghost-button" id="exportOutstandingReport" type="button">Outstanding Training CSV</button>
+                <button class="ghost-button" id="exportSyncFailures" type="button">Role-sync Failures CSV</button>
+              </div>
+              <div class="analytics-table-wrap">
+                <div class="panel-heading">
+                  <div><h3>Role-sync History</h3><p class="section-subtitle">Every leadership FMS sync attempt and its outcome.</p></div>
+                  <button class="ghost-button" id="retryFailedSyncs" type="button">Retry Failed Syncs</button>
+                </div>
+                <table class="analytics-table">
+                  <thead><tr><th>Time</th><th>Player</th><th>Leader</th><th>Status</th><th>Roles Added</th><th>Details</th><th>Action</th></tr></thead>
+                  <tbody id="roleSyncHistoryBody"></tbody>
                 </table>
               </div>
             </section>

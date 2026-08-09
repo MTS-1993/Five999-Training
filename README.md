@@ -38,6 +38,10 @@ Only people with that complete URL can load the training. It is omitted from the
 - Bulk training import/export plus analytics CSV export
 - Clickable player profiles in analytics with full training history
 - Separate Leadership completed-trainings view with player search by name or Discord ID and FMS role re-sync actions
+- Leadership completion filters for service, course, date range, player, and latest role-sync status, with pagination
+- Bulk FMS role re-sync for selected or filtered players, including success/partial/failure summaries
+- Persistent FMS role-sync history with leader attribution, error details, and failed-sync retries
+- CSV reports for filtered completions, qualification expiry, outstanding saved training, and role-sync failures
 - Training feedback table in Command analytics
 - Optional image URLs and resource URLs for trainings and modules
 - Uploaded images for trainings and modules, stored with the training record
