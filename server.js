@@ -74,8 +74,22 @@ const pool = DATABASE_URL
   ? new Pool({
       connectionString: DATABASE_URL,
       ssl: DATABASE_URL.includes("localhost") ? false : { rejectUnauthorized: false },
+      connectionTimeoutMillis: 10_000,
+      idleTimeoutMillis: 30_000,
+      keepAlive: true,
     })
   : null;
+
+// pg emits idle-client failures on the pool itself. Without a listener Node
+// treats them as unhandled EventEmitter errors and terminates the process.
+if (pool) {
+  pool.on("error", (error) => {
+    console.error("[F999 Training][Database] Idle connection error; the pool will replace the client.", {
+      message: error?.message || String(error),
+      code: error?.code || null,
+    });
+  });
+}
 
 let databaseReady = false;
 
@@ -711,8 +725,10 @@ async function fmsRequest(route, options = {}, context = {}) {
 
   let response;
   try {
+    const requestTimeoutMs = Math.max(1_000, Number(process.env.FMS_REQUEST_TIMEOUT_MS) || 15_000);
     response = await fetch(url, {
       ...options,
+      signal: options.signal || AbortSignal.timeout(requestTimeoutMs),
       headers: {
         Accept: "application/json, text/plain;q=0.9, */*;q=0.8",
         "User-Agent": "Five999-Training-Dashboard/1.0",
@@ -761,46 +777,69 @@ async function fmsRequest(route, options = {}, context = {}) {
   return data;
 }
 
+function isRetryableFmsError(error) {
+  const status = Number(error?.status);
+  return !status || status === 408 || status === 425 || status === 429 || status >= 500;
+}
+
+async function waitForFmsRetry(attempt) {
+  const delayMs = 250 * (2 ** (attempt - 1));
+  await new Promise((resolve) => setTimeout(resolve, delayMs));
+}
+
 async function addFmsTrainingGroups(user, course, groupIds, note, message, context = {}) {
   groupIds = parseNumericIds(groupIds);
   if (!groupIds.length || !FMS_API_BASE_URL || !FMS_API_TOKEN) return null;
 
-  const lookup = await fmsRequest(`/training/groups/user?discordid=${encodeURIComponent(user.id)}`, {}, { ...context, stage: `${context.stage || "Group sync"}: look up existing groups` });
-  const existingIds = new Set((lookup?.data || []).map((group) => Number(group.id)));
-  const missingIds = groupIds.filter((groupId) => !existingIds.has(groupId));
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      // Repeat the lookup on every attempt. If a POST reached FMS but its
+      // response was lost, this prevents a second assignment.
+      const lookup = await fmsRequest(`/training/groups/user?discordid=${encodeURIComponent(user.id)}`, {}, { ...context, stage: `${context.stage || "Group sync"}: look up existing groups` });
+      const existingIds = new Set((lookup?.data || []).map((group) => Number(group.id)));
+      const missingIds = groupIds.filter((groupId) => !existingIds.has(groupId));
 
-  if (!missingIds.length) {
-    return {
-      ok: true,
-      skipped: true,
-      message: `FMS user already has the configured ${message}.`,
-      groupIds,
-      syncedAt: new Date().toISOString(),
-    };
+      if (!missingIds.length) {
+        return {
+          ok: true,
+          skipped: true,
+          message: `FMS user already has the configured ${message}.`,
+          groupIds,
+          syncedAt: new Date().toISOString(),
+        };
+      }
+
+      const body = {
+        discordid: user.id,
+        groupids: missingIds,
+        note: note || `Automatically awarded after passing ${course.title} through Five999 Training Hub.`,
+        autoremoveonexpiry: course.fmsAutoRemoveOnExpiry !== false,
+      };
+      if (course.fmsTrainingExpiryDate) body.expirydate = course.fmsTrainingExpiryDate;
+
+      await fmsRequest("/training/groups/user/add", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }, { ...context, stage: `${context.stage || "Group sync"}: add missing groups` });
+
+      return {
+        ok: true,
+        skipped: false,
+        message: `FMS ${message} added.`,
+        groupIds: missingIds,
+        syncedAt: new Date().toISOString(),
+      };
+    } catch (error) {
+      if (attempt === 3 || !isRetryableFmsError(error)) throw error;
+      fmsSyncLog(context.syncId || "background", context.stage || "Group sync", "Retrying transient FMS failure", {
+        attempt,
+        nextAttempt: attempt + 1,
+        error: error.message,
+        status: error.status || null,
+      }, "warn");
+      await waitForFmsRetry(attempt);
+    }
   }
-
-  const body = {
-    discordid: user.id,
-    groupids: missingIds,
-    note:
-      note ||
-      `Automatically awarded after passing ${course.title} through Five999 Training Hub.`,
-    autoremoveonexpiry: course.fmsAutoRemoveOnExpiry !== false,
-  };
-  if (course.fmsTrainingExpiryDate) body.expirydate = course.fmsTrainingExpiryDate;
-
-  await fmsRequest("/training/groups/user/add", {
-    method: "POST",
-    body: JSON.stringify(body),
-  }, { ...context, stage: `${context.stage || "Group sync"}: add missing groups` });
-
-  return {
-    ok: true,
-    skipped: false,
-    message: `FMS ${message} added.`,
-    groupIds: missingIds,
-    syncedAt: new Date().toISOString(),
-  };
 }
 
 async function addFinalFmsTrainingGroups(user, course, context = {}) {
@@ -939,7 +978,8 @@ async function importFmsTrainingProgress(user, progress, courses) {
 async function syncNewFmsCompletions(user, oldProgress, nextProgress, courses) {
   const courseMap = new Map(courses.map((course) => [course.id, course]));
   const newlyCompleted = Object.entries(nextProgress || {}).filter(([courseId, item]) => {
-    return item?.passed && !oldProgress?.[courseId]?.passed && courseMap.has(courseId);
+    const previous = oldProgress?.[courseId];
+    return item?.passed && (!previous?.passed || previous?.fmsTrainingSync?.ok === false) && courseMap.has(courseId);
   });
 
   for (const [courseId, courseProgress] of newlyCompleted) {
@@ -963,7 +1003,8 @@ async function syncNewFmsCompletions(user, oldProgress, nextProgress, courses) {
 async function syncNewFmsTheoryPasses(user, oldProgress, nextProgress, courses) {
   const courseMap = new Map(courses.map((course) => [course.id, course]));
   const newlyTheoryPassed = Object.entries(nextProgress || {}).filter(([courseId, item]) => {
-    return item?.theoryPassed && !oldProgress?.[courseId]?.theoryPassed && courseMap.has(courseId);
+    const previous = oldProgress?.[courseId];
+    return item?.theoryPassed && (!previous?.theoryPassed || previous?.fmsTheorySync?.ok === false) && courseMap.has(courseId);
   });
 
   for (const [courseId, courseProgress] of newlyTheoryPassed) {
