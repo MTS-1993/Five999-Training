@@ -764,6 +764,13 @@ async function fmsRequest(route, options = {}, context = {}) {
     error.method = method;
     error.responseBody = safeLogValue(data);
     error.durationMs = durationMs;
+    const retryAfterHeader = Number(response.headers.get("retry-after"));
+    const retryAfterMessage = String(responseMessage).match(/try again in\s+(\d+)\s+seconds?/i);
+    error.retryAfterMs = Number.isFinite(retryAfterHeader) && retryAfterHeader > 0
+      ? retryAfterHeader * 1_000
+      : retryAfterMessage
+        ? Number(retryAfterMessage[1]) * 1_000
+        : null;
     error.likelyCause = explainFmsError(error);
     fmsSyncLog(syncId, context.stage || "FMS request", "FMS returned an error", {
       method, endpoint: route, status: response.status, durationMs, response: error.responseBody, likelyCause: error.likelyCause,
@@ -782,14 +789,24 @@ function isRetryableFmsError(error) {
   return !status || status === 408 || status === 425 || status === 429 || status >= 500;
 }
 
-async function waitForFmsRetry(attempt) {
-  const delayMs = 250 * (2 ** (attempt - 1));
+async function waitForFmsRetry(attempt, error) {
+  // Honour FMS's Retry-After response/message and add a small safety margin.
+  const serverDelayMs = Number(error?.retryAfterMs) || 0;
+  const delayMs = Math.max(250 * (2 ** (attempt - 1)), serverDelayMs ? serverDelayMs + 1_000 : 0);
   await new Promise((resolve) => setTimeout(resolve, delayMs));
 }
 
 async function addFmsTrainingGroups(user, course, groupIds, note, message, context = {}) {
   groupIds = parseNumericIds(groupIds);
   if (!groupIds.length || !FMS_API_BASE_URL || !FMS_API_TOKEN) return null;
+
+  const isBackgroundSync = !context.syncId || context.syncId === "background";
+  if (isBackgroundSync && Date.now() < backgroundFmsBlockedUntil) {
+    const error = new Error("Automatic FMS role sync is paused after an authentication or rate-limit rejection.");
+    error.code = "FMS_BACKGROUND_COOLDOWN";
+    error.status = 429;
+    throw error;
+  }
 
   for (let attempt = 1; attempt <= 3; attempt += 1) {
     try {
@@ -830,6 +847,11 @@ async function addFmsTrainingGroups(user, course, groupIds, note, message, conte
         syncedAt: new Date().toISOString(),
       };
     } catch (error) {
+      if (isBackgroundSync && [401, 403, 429].includes(Number(error.status))) {
+        const retryMs = Number(error.retryAfterMs) || (Number(error.status) === 429 ? 60_000 : 5 * 60_000);
+        backgroundFmsBlockedUntil = Math.max(backgroundFmsBlockedUntil, Date.now() + retryMs);
+        throw error;
+      }
       if (attempt === 3 || !isRetryableFmsError(error)) throw error;
       fmsSyncLog(context.syncId || "background", context.stage || "Group sync", "Retrying transient FMS failure", {
         attempt,
@@ -837,7 +859,7 @@ async function addFmsTrainingGroups(user, course, groupIds, note, message, conte
         error: error.message,
         status: error.status || null,
       }, "warn");
-      await waitForFmsRetry(attempt);
+      await waitForFmsRetry(attempt, error);
     }
   }
 }
