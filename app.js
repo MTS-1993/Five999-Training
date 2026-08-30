@@ -55,6 +55,8 @@ const certificatePreviewCache = new Map();
 const pendingCertificatePreviews = new Set();
 
 const courseList = document.getElementById("courseList");
+const mobileNavToggle = document.getElementById("mobileNavToggle");
+const mobileNavContent = document.getElementById("mobileNavContent");
 const courseSearch = document.getElementById("courseSearch");
 const courseTitle = document.getElementById("courseTitle");
 const courseTag = document.getElementById("courseTag");
@@ -1418,12 +1420,12 @@ function renderCourseList() {
         <section class="service-group">
           <button class="service-button ${
             expandedServices.has(service) ? "active" : ""
-          }" type="button" data-service="${escapeHtml(service)}" aria-expanded="${expandedServices.has(service)}">
+          }" type="button" data-service="${escapeHtml(service)}" aria-expanded="${expandedServices.has(service)}" aria-controls="service-${escapeHtml(service).replace(/[^a-zA-Z0-9_-]/g, "-")}">
             <strong class="service-toggle">${expandedServices.has(service) ? "-" : "+"}</strong>
             <span>${escapeHtml(service)}</span>
             <small>${serviceCourses.length}</small>
           </button>
-          <div class="service-trainings" ${expandedServices.has(service) ? "" : "hidden"}>
+          <div class="service-trainings" id="service-${escapeHtml(service).replace(/[^a-zA-Z0-9_-]/g, "-")}" ${expandedServices.has(service) ? "" : "hidden"}>
             ${
               serviceCourses.length
                 ? serviceCourses
@@ -1432,7 +1434,7 @@ function renderCourseList() {
                       const state = getProgressState(course);
                       const isActive = course.id === selectedCourseId;
                       return `
-                        <button class="course-button ${isActive ? "active" : ""}" type="button" data-course="${escapeHtml(course.id)}">
+                        <button class="course-button ${isActive ? "active" : ""}" type="button" data-course="${escapeHtml(course.id)}" ${isActive ? 'aria-current="page"' : ""}>
                           <span class="course-icon">${escapeHtml(course.icon)}</span>
                           <span>
                             <strong>${escapeHtml(course.title)}</strong>
@@ -1473,6 +1475,7 @@ function renderCourseList() {
       selectedModuleIndex = 0;
       currentView = "training";
       adminMode = false;
+      if (window.matchMedia("(max-width: 900px)").matches) setMobileNav(false);
       render();
     });
   });
@@ -1555,7 +1558,7 @@ function renderModules(course) {
     .map((module, index) => {
       const read = courseProgress.readModules.includes(index);
       const active = selectedModuleIndex === index;
-      return `<button class="module-tab ${active ? "active" : ""}" type="button" data-module="${index}">
+      return `<button class="module-tab ${active ? "active" : ""}" id="module-tab-${index}" type="button" role="tab" data-module="${index}" aria-selected="${active}" aria-controls="module-panel" tabindex="${active ? "0" : "-1"}">
         ${read ? "Read: " : ""}${escapeHtml(module.title)}
       </button>`;
     })
@@ -1568,8 +1571,14 @@ function renderModules(course) {
     });
   });
 
+  moduleTabs.onkeydown = handleModuleTabKeydown;
+
   const module = course.modules[selectedModuleIndex] || course.modules[0];
   const points = modulePoints(module);
+  moduleBody.setAttribute("role", "tabpanel");
+  moduleBody.setAttribute("id", "module-panel");
+  moduleBody.setAttribute("aria-labelledby", `module-tab-${selectedModuleIndex}`);
+  moduleBody.setAttribute("tabindex", "0");
   moduleBody.innerHTML = `
     <h3>${escapeHtml(module.title)}</h3>
     ${renderMedia(module.imageUrl, module.resourceUrl)}
@@ -2378,6 +2387,43 @@ managerForm.addEventListener("submit", async (event) => {
   }
 });
 
+function setMobileNav(open) {
+  if (!mobileNavToggle || !mobileNavContent) return;
+  const isMobile = window.matchMedia("(max-width: 900px)").matches;
+  mobileNavContent.hidden = isMobile ? !open : false;
+  mobileNavToggle.setAttribute("aria-expanded", String(isMobile ? open : true));
+  document.body.classList.toggle("mobile-nav-open", isMobile && open);
+}
+
+function handleModuleTabKeydown(event) {
+  if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+  const tabs = [...moduleTabs.querySelectorAll('[role="tab"]')];
+  if (!tabs.length) return;
+  event.preventDefault();
+  let nextIndex = tabs.indexOf(document.activeElement);
+  if (event.key === "Home") nextIndex = 0;
+  else if (event.key === "End") nextIndex = tabs.length - 1;
+  else if (event.key === "ArrowRight") nextIndex = (nextIndex + 1) % tabs.length;
+  else nextIndex = (nextIndex - 1 + tabs.length) % tabs.length;
+  selectedModuleIndex = Number(tabs[nextIndex].dataset.module);
+  render();
+  moduleTabs.querySelector(`[data-module="${selectedModuleIndex}"]`)?.focus();
+}
+
+mobileNavToggle?.addEventListener("click", () => {
+  setMobileNav(mobileNavToggle.getAttribute("aria-expanded") !== "true");
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && window.matchMedia("(max-width: 900px)").matches && mobileNavToggle?.getAttribute("aria-expanded") === "true") {
+    setMobileNav(false);
+    mobileNavToggle.focus();
+  }
+});
+
+const mobileNavMedia = window.matchMedia("(max-width: 900px)");
+mobileNavMedia.addEventListener?.("change", (event) => setMobileNav(!event.matches));
+
 async function init() {
   const coursesUrl = directCourseId && directAccessCode
     ? `/api/courses?training=${encodeURIComponent(directCourseId)}&access=${encodeURIComponent(directAccessCode)}`
@@ -2410,6 +2456,7 @@ async function init() {
     progress = saved.progress || {};
   }
 
+  setMobileNav(!window.matchMedia("(max-width: 900px)").matches);
   render();
 }
 
@@ -2417,5 +2464,6 @@ init().catch((error) => {
   console.error(error);
   progress = JSON.parse(localStorage.getItem("five999TrainingProgressBackup") || "{}");
   normalizeCourses();
+  setMobileNav(!window.matchMedia("(max-width: 900px)").matches);
   render();
 });

@@ -13,6 +13,7 @@
     <link rel="stylesheet" href="styles.css?v=20260515-2" />
   </head>
   <body>
+    <a class="skip-link" href="#mainContent">Skip to main content</a>
     <div class="app-shell">
       <aside class="sidebar" aria-label="Training navigation">
         <div class="brand">
@@ -23,6 +24,12 @@
           />
         </div>
 
+        <button class="mobile-nav-toggle" id="mobileNavToggle" type="button" aria-expanded="false" aria-controls="mobileNavContent">
+          <span aria-hidden="true">☰</span>
+          <span>Training menu</span>
+        </button>
+
+        <div class="mobile-nav-content" id="mobileNavContent">
         <div class="sidebar-section-label">Service Training Areas</div>
 
         <div class="sidebar-search">
@@ -44,14 +51,15 @@
 
         <div class="sidebar-footer">
           <div>
-            <span class="status-dot"></span>
+            <span class="status-dot" aria-hidden="true"></span>
             <span>Pass mark: 80%</span>
           </div>
           <small>&copy; Five RP Group 2026</small>
         </div>
+        </div>
       </aside>
 
-      <main class="workspace">
+      <main class="workspace" id="mainContent" tabindex="-1">
         <header class="topbar">
           <div>
             <p class="eyebrow">Specialist subdivisions</p>
