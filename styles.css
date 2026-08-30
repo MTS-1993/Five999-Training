@@ -3197,3 +3197,137 @@ iframe {
   }
   .status-dot { forced-color-adjust: none; }
 }
+
+/* Mobile right-hand workspace correction — 2026-08-30
+   Keep this at the end of the stylesheet so the Five999 identity refresh
+   cannot restore the desktop two-column shell on small screens. */
+@media (max-width: 900px) {
+  .app-shell {
+    display: block;
+    grid-template-columns: none;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .sidebar,
+  .workspace,
+  main,
+  section,
+  article,
+  .topbar,
+  .landing-panel,
+  .hero-panel,
+  .training-area,
+  .profile-panel,
+  .content-grid,
+  .panel,
+  .completion-panel,
+  .management-panel,
+  .analytics-panel,
+  .manager-layout,
+  .manager-form,
+  .course-start-panel,
+  .auth-panel {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .workspace {
+    margin: 0;
+  }
+
+  .hero-panel,
+  .content-grid,
+  .manager-layout,
+  .profile-grid,
+  .certificate-summary,
+  .answer-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .hero-copy,
+  .hero-art,
+  .module-body,
+  .quiz-form,
+  .question,
+  .answer-list,
+  .answer,
+  .panel-heading,
+  .progress-strip,
+  .course-start-panel,
+  .auth-panel {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .module-body,
+  .module-body p,
+  .module-body li,
+  .question,
+  .answer-copy,
+  .section-subtitle,
+  .field-hint,
+  .topbar-subtitle,
+  .hero-copy p,
+  .hero-copy h2,
+  .panel h2,
+  .panel h3 {
+    overflow-wrap: anywhere;
+    word-break: normal;
+  }
+
+  .analytics-table-wrap {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@media (max-width: 700px) {
+  .workspace {
+    width: 100%;
+    max-width: 100%;
+    padding: 16px 12px 28px;
+  }
+
+  .topbar,
+  .panel-heading,
+  .progress-strip,
+  .course-start-panel,
+  .auth-panel {
+    width: 100%;
+  }
+
+  .hero-panel,
+  .content-grid,
+  .panel,
+  .profile-panel,
+  .completion-panel,
+  .management-panel,
+  .analytics-panel {
+    margin-left: 0;
+    margin-right: 0;
+  }
+
+  .signal-card {
+    position: static;
+    margin: 12px;
+    width: auto;
+    max-width: calc(100% - 24px);
+  }
+
+  .resource-link {
+    width: 100%;
+    margin-right: 0;
+    margin-bottom: 8px;
+    text-align: center;
+  }
+
+  .fms-sync-status__header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
+}
