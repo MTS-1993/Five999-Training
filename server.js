@@ -288,7 +288,7 @@ function sanitizeExpiryDate(value) {
 }
 
 const fmsSyncDebugEnabled = String(FMS_SYNC_DEBUG).toLowerCase() === "true";
-const FMS_SYNC_BUILD = "2026-09-20-direct-award-fallback-v5";
+const FMS_SYNC_BUILD = "2026-09-20-bridge-compatible-award-v6";
 let backgroundFmsBlockedUntil = 0;
 
 console.log(`[F999 Training] FMS sync build: ${FMS_SYNC_BUILD}`);
@@ -816,22 +816,32 @@ async function addFmsTrainingGroups(user, course, groupIds, note, message, conte
       // training routes support discordid, but using userid avoids installations
       // where Discord identifiers are stored in a different representation.
       let fmsUserId = null;
-      try {
-        const player = await fmsRequest(`/users/lookup?discordid=${encodeURIComponent(user.id)}`, {}, {
-          ...context,
-          stage: `${context.stage || "Group sync"}: resolve FMS player`,
-        });
-        fmsUserId = Number(player?.userid);
-        if (!Number.isInteger(fmsUserId) || fmsUserId <= 0) fmsUserId = null;
-      } catch (error) {
-        // A 404 here normally means that the Discord account has not been added
-        // to FMS. Still try the documented training endpoint with discordid so
-        // older FMS builds that lack /users/lookup can award the group.
-        if (Number(error?.status) !== 404) throw error;
-        fmsSyncLog(context.syncId || "background", context.stage || "Group sync", "FMS player lookup returned 404; trying direct Discord-ID award", {
+      const usingBridge = Boolean(cleanEnvironmentValue(FMS_BRIDGE_URL));
+      if (!usingBridge) {
+        try {
+          const player = await fmsRequest(`/users/lookup?discordid=${encodeURIComponent(user.id)}`, {}, {
+            ...context,
+            stage: `${context.stage || "Group sync"}: resolve FMS player`,
+          });
+          fmsUserId = Number(player?.userid);
+          if (!Number.isInteger(fmsUserId) || fmsUserId <= 0) fmsUserId = null;
+        } catch (error) {
+          // A 404 here normally means that the Discord account has not been added
+          // to FMS. Still try the documented training endpoint with discordid so
+          // older FMS builds that lack /users/lookup can award the group.
+          if (Number(error?.status) !== 404) throw error;
+          fmsSyncLog(context.syncId || "background", context.stage || "Group sync", "FMS player lookup returned 404; trying direct Discord-ID award", {
+            discordId: user.id,
+            endpoint: error.endpoint,
+          }, "warn");
+        }
+      } else {
+        // The FiveM bridge intentionally exposes only its training-route
+        // allowlist. /users/lookup is not required because every training route
+        // accepts discordid directly.
+        fmsSyncLog(context.syncId || "background", context.stage || "Group sync", "Bridge mode: using Discord ID directly", {
           discordId: user.id,
-          endpoint: error.endpoint,
-        }, "warn");
+        }, "debug");
       }
 
       const identity = fmsUserId ? { userid: fmsUserId } : { discordid: String(user.id) };

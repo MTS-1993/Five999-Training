@@ -126,6 +126,8 @@ Set `FMS_API_BASE_URL` to your FMS framework API base, for example `https://your
 
 The player must already exist in FMS and their FMS account must contain the same Discord ID used to sign in to the Training Hub. In FMS/TASE, configure the required Discord role on the relevant training group. When the Training Hub awards that group, FMS performs its configured Discord synchronisation. A Discord role ID is not an FMS training group ID: use the numeric ID returned by `GET /frameworkapi/training/groups/all` or the ID shown for that training group in FMS.
 
+When `FMS_BRIDGE_URL` is configured, the dashboard uses the Discord ID directly on the bridge's permitted training routes and does not call `/users/lookup`. This avoids the bridge response `Route or method is not allowed by the bridge`.
+
 When a player signs in, the dashboard checks their existing FMS training groups. If they already hold the final FMS training group configured on a course, that course is automatically marked as completed on their dashboard. If a practical course has a theory/awaiting-practical FMS group configured, that can also be imported as theory passed while still leaving the practical stage pending.
 
 ## Discord OAuth2 Redirect
