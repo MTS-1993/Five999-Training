@@ -288,7 +288,7 @@ function sanitizeExpiryDate(value) {
 }
 
 const fmsSyncDebugEnabled = String(FMS_SYNC_DEBUG).toLowerCase() === "true";
-const FMS_SYNC_BUILD = "2026-07-26-background-guard-v4";
+const FMS_SYNC_BUILD = "2026-09-20-direct-award-fallback-v5";
 let backgroundFmsBlockedUntil = 0;
 
 console.log(`[F999 Training] FMS sync build: ${FMS_SYNC_BUILD}`);
@@ -812,10 +812,50 @@ async function addFmsTrainingGroups(user, course, groupIds, note, message, conte
 
   for (let attempt = 1; attempt <= 3; attempt += 1) {
     try {
-      // Repeat the lookup on every attempt. If a POST reached FMS but its
-      // response was lost, this prevents a second assignment.
-      const lookup = await fmsRequest(`/training/groups/user?discordid=${encodeURIComponent(user.id)}`, {}, { ...context, stage: `${context.stage || "Group sync"}: look up existing groups` });
-      const existingIds = new Set((lookup?.data || []).map((group) => Number(group.id)));
+      // Resolve the Discord account to its numeric FMS user id first. The FMS
+      // training routes support discordid, but using userid avoids installations
+      // where Discord identifiers are stored in a different representation.
+      let fmsUserId = null;
+      try {
+        const player = await fmsRequest(`/users/lookup?discordid=${encodeURIComponent(user.id)}`, {}, {
+          ...context,
+          stage: `${context.stage || "Group sync"}: resolve FMS player`,
+        });
+        fmsUserId = Number(player?.userid);
+        if (!Number.isInteger(fmsUserId) || fmsUserId <= 0) fmsUserId = null;
+      } catch (error) {
+        // A 404 here normally means that the Discord account has not been added
+        // to FMS. Still try the documented training endpoint with discordid so
+        // older FMS builds that lack /users/lookup can award the group.
+        if (Number(error?.status) !== 404) throw error;
+        fmsSyncLog(context.syncId || "background", context.stage || "Group sync", "FMS player lookup returned 404; trying direct Discord-ID award", {
+          discordId: user.id,
+          endpoint: error.endpoint,
+        }, "warn");
+      }
+
+      const identity = fmsUserId ? { userid: fmsUserId } : { discordid: String(user.id) };
+      let existingIds = new Set();
+      try {
+        const identifierQuery = fmsUserId
+          ? `userid=${encodeURIComponent(fmsUserId)}`
+          : `discordid=${encodeURIComponent(user.id)}`;
+        const lookup = await fmsRequest(`/training/groups/user?${identifierQuery}`, {}, {
+          ...context,
+          stage: `${context.stage || "Group sync"}: look up existing groups`,
+        });
+        existingIds = new Set((lookup?.data || []).map((group) => Number(group.id)));
+      } catch (error) {
+        // Do not let a missing/broken optional lookup prevent the actual award.
+        // The add endpoint below is authoritative and gives a clearer error.
+        if (Number(error?.status) !== 404) throw error;
+        fmsSyncLog(context.syncId || "background", context.stage || "Group sync", "Training-group lookup returned 404; continuing to direct award", {
+          discordId: user.id,
+          fmsUserId,
+          endpoint: error.endpoint,
+        }, "warn");
+      }
+
       const missingIds = groupIds.filter((groupId) => !existingIds.has(groupId));
 
       if (!missingIds.length) {
@@ -828,24 +868,47 @@ async function addFmsTrainingGroups(user, course, groupIds, note, message, conte
         };
       }
 
-      const body = {
-        discordid: user.id,
-        groupids: missingIds,
-        note: note || `Automatically awarded after passing ${course.title} through Five999 Training Hub.`,
-        autoremoveonexpiry: course.fmsAutoRemoveOnExpiry !== false,
-      };
-      if (course.fmsTrainingExpiryDate) body.expirydate = course.fmsTrainingExpiryDate;
+      const addedIds = [];
+      const alreadyPresentIds = [];
 
-      await fmsRequest("/training/groups/user/add", {
-        method: "POST",
-        body: JSON.stringify(body),
-      }, { ...context, stage: `${context.stage || "Group sync"}: add missing groups` });
+      // Award one group per request. FMS rejects a combined request when even
+      // one requested group is already held; per-group calls let re-sync remain
+      // idempotent and still award every missing qualification.
+      for (const groupId of missingIds) {
+        const body = {
+          ...identity,
+          groupids: [groupId],
+          note: note || `Automatically awarded after passing ${course.title} through Five999 Training Hub.`,
+          autoremoveonexpiry: course.fmsAutoRemoveOnExpiry !== false,
+        };
+        if (course.fmsTrainingExpiryDate) body.expirydate = course.fmsTrainingExpiryDate;
+
+        try {
+          await fmsRequest("/training/groups/user/add", {
+            method: "POST",
+            body: JSON.stringify(body),
+          }, { ...context, stage: `${context.stage || "Group sync"}: add group ${groupId}` });
+          addedIds.push(groupId);
+        } catch (error) {
+          const responseText = String(error?.responseBody || error?.message || "").toLowerCase();
+          if (Number(error?.status) === 400 && /already\s+(has|hold)|already\s+assigned/.test(responseText)) {
+            alreadyPresentIds.push(groupId);
+            continue;
+          }
+          if (Number(error?.status) === 404 && !fmsUserId) {
+            error.likelyCause = "This Discord account was not found in FMS, or the configured training group ID does not exist. The player must first have an FMS account linked to the same Discord ID.";
+          }
+          throw error;
+        }
+      }
 
       return {
         ok: true,
-        skipped: false,
-        message: `FMS ${message} added.`,
-        groupIds: missingIds,
+        skipped: addedIds.length === 0,
+        message: addedIds.length ? `FMS ${message} added.` : `FMS user already has the configured ${message}.`,
+        groupIds: addedIds.length ? addedIds : alreadyPresentIds,
+        addedGroupIds: addedIds,
+        alreadyPresentGroupIds: alreadyPresentIds,
         syncedAt: new Date().toISOString(),
       };
     } catch (error) {
