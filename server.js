@@ -1844,7 +1844,7 @@ app.get("/api/fms-connection-test", requireUser, async (req, res) => {
       tokenPresent: Boolean(cleanEnvironmentValue(FMS_API_TOKEN)),
       tokenLength: cleanEnvironmentValue(FMS_API_TOKEN).length,
       error: error.message,
-      response: error.response,
+      response: safeLogValue(error.responseBody),
       likelyCause: explainFmsError(error),
     });
   }

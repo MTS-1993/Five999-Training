@@ -1220,7 +1220,14 @@ async function resyncFmsRoles(discordId, button = null) {
       const failureText = failures
         .map((item) => {
           const status = item.statusCode ? `HTTP ${item.statusCode}` : "Request error";
-          return `${item.courseTitle} (${item.type}): ${status} — ${item.issue || item.message || "Unknown error"}`;
+          let rawResponse = item.response;
+          if (rawResponse && typeof rawResponse === "object") {
+            try { rawResponse = JSON.stringify(rawResponse); } catch { rawResponse = String(rawResponse); }
+          }
+          const actual = String(rawResponse || item.message || "").trim();
+          const diagnostic = actual ? ` | FMS response: ${actual}` : "";
+          const endpoint = item.endpoint ? ` | Endpoint: ${item.endpoint}` : "";
+          return `${item.courseTitle} (${item.type}): ${status} — ${item.issue || item.message || "Unknown error"}${diagnostic}${endpoint}`;
         })
         .join(" | ");
       fmsResyncResult.textContent = `Role re-sync completed in ${durationText} with ${summary.failed} failure(s). Checked ${summary.checked || 0}; added ${summary.added || 0}; already present ${summary.skipped || 0}. ${failureText} Sync ID: ${summary.syncId || "unavailable"}.`;
