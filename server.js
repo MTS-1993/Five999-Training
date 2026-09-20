@@ -40,6 +40,8 @@ const {
   FMS_API_TOKEN = "",
   FMS_API_TOKEN_HEADER = "api-token",
   FMS_API_TOKEN_PREFIX = "",
+  FMS_BRIDGE_URL = "",
+  FMS_BRIDGE_SECRET = "",
   FMS_SYNC_DEBUG = "false",
   FMS_SYNC_WEBHOOK_URL = "",
   PUBLIC_APP_URL = "",
@@ -698,16 +700,26 @@ async function sendDiscordDm(discordId, message) {
 }
 
 async function fmsRequest(route, options = {}, context = {}) {
-  const url = fmsApiUrl(route);
+  const bridgeUrl = cleanEnvironmentValue(FMS_BRIDGE_URL).replace(/\/+$/, "");
+  const bridgeSecret = cleanEnvironmentValue(FMS_BRIDGE_SECRET);
+  const directUrl = fmsApiUrl(route);
   const token = cleanEnvironmentValue(FMS_API_TOKEN);
   const tokenHeader = cleanEnvironmentValue(FMS_API_TOKEN_HEADER) || "api-token";
   const tokenPrefix = cleanEnvironmentValue(FMS_API_TOKEN_PREFIX);
   const tokenValue = tokenPrefix ? `${tokenPrefix} ${token}` : token;
   const syncId = context.syncId || "background";
   const method = options.method || "GET";
+  const usingBridge = Boolean(bridgeUrl);
+  const url = usingBridge ? `${bridgeUrl}${route}` : directUrl;
 
-  if (!url || !token) {
-    const error = new Error("FMS integration is not configured. FMS_API_BASE_URL and FMS_API_TOKEN are required.");
+  if (usingBridge && !bridgeSecret) {
+    const error = new Error("FMS bridge is configured but FMS_BRIDGE_SECRET is missing.");
+    error.code = "FMS_BRIDGE_NOT_CONFIGURED";
+    error.endpoint = route;
+    throw error;
+  }
+  if (!usingBridge && (!directUrl || !token)) {
+    const error = new Error("FMS integration is not configured. Set FMS_BRIDGE_URL + FMS_BRIDGE_SECRET, or FMS_API_BASE_URL + FMS_API_TOKEN.");
     error.code = "FMS_NOT_CONFIGURED";
     error.endpoint = route;
     throw error;
@@ -715,12 +727,11 @@ async function fmsRequest(route, options = {}, context = {}) {
 
   const startedAt = Date.now();
   fmsSyncLog(syncId, context.stage || "FMS request", "Sending request", {
-    method,
-    endpoint: route,
-    resolvedBaseUrl: fmsApiUrl("").replace(/\/$/, ""),
-    authHeader: tokenHeader,
-    authPrefix: tokenPrefix || "(none)",
-    tokenLength: token.length,
+    method, endpoint: route, transport: usingBridge ? "FiveM bridge" : "Direct FMS",
+    resolvedBaseUrl: usingBridge ? bridgeUrl : fmsApiUrl("").replace(/\/$/, ""),
+    authHeader: usingBridge ? "x-five999-bridge-secret" : tokenHeader,
+    authPrefix: usingBridge ? "(bridge secret)" : (tokenPrefix || "(none)"),
+    tokenLength: usingBridge ? bridgeSecret.length : token.length,
   }, "debug");
 
   let response;
@@ -732,61 +743,36 @@ async function fmsRequest(route, options = {}, context = {}) {
       headers: {
         Accept: "application/json, text/plain;q=0.9, */*;q=0.8",
         "User-Agent": "Five999-Training-Dashboard/1.0",
-        [tokenHeader]: tokenValue,
+        ...(usingBridge ? { "x-five999-bridge-secret": bridgeSecret } : { [tokenHeader]: tokenValue }),
         "Content-Type": "application/json",
         ...(options.headers || {}),
       },
     });
   } catch (error) {
-    error.endpoint = route;
-    error.method = method;
-    error.durationMs = Date.now() - startedAt;
+    error.endpoint = route; error.method = method; error.durationMs = Date.now() - startedAt;
     fmsSyncLog(syncId, context.stage || "FMS request", "Network request failed", {
-      method, endpoint: route, durationMs: error.durationMs, error: error.message, likelyCause: explainFmsError(error),
+      method, endpoint: route, transport: usingBridge ? "FiveM bridge" : "Direct FMS", durationMs: error.durationMs, error: error.message,
     }, "error");
     throw error;
   }
 
   const text = await response.text();
   let data = null;
-  try {
-    data = text ? JSON.parse(text) : null;
-  } catch {
-    data = text;
-  }
-
+  try { data = text ? JSON.parse(text) : null; } catch { data = text; }
   const durationMs = Date.now() - startedAt;
   if (!response.ok) {
     const responseMessage = typeof data === "string" ? data : data?.message || data?.error || `FMS request failed with status ${response.status}`;
     const error = new Error(responseMessage);
-    error.status = response.status;
-    error.endpoint = route;
-    error.method = method;
-    error.responseBody = safeLogValue(data);
-    error.durationMs = durationMs;
+    error.status = response.status; error.endpoint = route; error.method = method; error.responseBody = safeLogValue(data); error.durationMs = durationMs;
     const retryAfterHeader = Number(response.headers.get("retry-after"));
-    const retryAfterMessage = String(responseMessage).match(/try again in\s+(\d+)\s+seconds?/i);
-    error.retryAfterMs = Number.isFinite(retryAfterHeader) && retryAfterHeader > 0
-      ? retryAfterHeader * 1_000
-      : retryAfterMessage
-        ? Number(retryAfterMessage[1]) * 1_000
-        : null;
-    error.likelyCause = explainFmsError(error);
+    error.retryAfterMs = Number.isFinite(retryAfterHeader) && retryAfterHeader > 0 ? retryAfterHeader * 1000 : null;
+    error.likelyCause = usingBridge && response.status === 401 ? "The Training Dashboard bridge secret does not match the FiveM bridge Config.BridgeSecret." : explainFmsError(error);
     fmsSyncLog(syncId, context.stage || "FMS request", "FMS returned an error", {
-      method, endpoint: route, status: response.status, durationMs, response: error.responseBody, likelyCause: error.likelyCause,
+      method, endpoint: route, transport: usingBridge ? "FiveM bridge" : "Direct FMS", status: response.status, durationMs, response: error.responseBody, likelyCause: error.likelyCause,
     }, "error");
     throw error;
   }
-
-  fmsSyncLog(syncId, context.stage || "FMS request", "Request succeeded", {
-    method, endpoint: route, status: response.status, durationMs,
-  }, "debug");
   return data;
-}
-
-function isRetryableFmsError(error) {
-  const status = Number(error?.status);
-  return !status || status === 408 || status === 425 || status === 429 || status >= 500;
 }
 
 async function waitForFmsRetry(attempt, error) {
@@ -798,7 +784,7 @@ async function waitForFmsRetry(attempt, error) {
 
 async function addFmsTrainingGroups(user, course, groupIds, note, message, context = {}) {
   groupIds = parseNumericIds(groupIds);
-  if (!groupIds.length || !FMS_API_BASE_URL || !FMS_API_TOKEN) return null;
+  if (!groupIds.length || (!FMS_BRIDGE_URL && (!FMS_API_BASE_URL || !FMS_API_TOKEN))) return null;
 
   const isBackgroundSync = !context.syncId || context.syncId === "background";
   if (isBackgroundSync && Date.now() < backgroundFmsBlockedUntil) {
@@ -937,7 +923,7 @@ function createImportedTheoryPass(course, existingProgress, importedAt) {
 }
 
 async function importFmsTrainingProgress(user, progress, courses) {
-  if (!FMS_API_BASE_URL || !FMS_API_TOKEN || !user?.id) return progress || {};
+  if ((!FMS_BRIDGE_URL && (!FMS_API_BASE_URL || !FMS_API_TOKEN)) || !user?.id) return progress || {};
 
   // Background profile imports must never hammer FMS after an access rejection.
   // Manual role re-sync requests do not use this guard and can retry immediately.
@@ -1068,7 +1054,7 @@ async function resyncFmsTrainingGroupsForRow(row, courses, syncId) {
     error.code = "INVALID_DISCORD_ID";
     throw error;
   }
-  if (!FMS_API_BASE_URL || !FMS_API_TOKEN) {
+  if ((!FMS_BRIDGE_URL && (!FMS_API_BASE_URL || !FMS_API_TOKEN))) {
     const error = new Error("FMS integration is not configured. Set FMS_API_BASE_URL and FMS_API_TOKEN in Render.");
     error.code = "FMS_NOT_CONFIGURED";
     throw error;
@@ -1826,7 +1812,9 @@ app.get("/api/fms-connection-test", requireUser, async (req, res) => {
       durationMs: Date.now() - startedAt,
       endpoint: route,
       baseUrl: fmsApiUrl("").replace(/\/$/, ""),
-      authHeader: cleanEnvironmentValue(FMS_API_TOKEN_HEADER) || "api-token",
+      transport: cleanEnvironmentValue(FMS_BRIDGE_URL) ? "FiveM bridge" : "Direct FMS",
+      bridgeUrl: cleanEnvironmentValue(FMS_BRIDGE_URL) || null,
+      authHeader: cleanEnvironmentValue(FMS_BRIDGE_URL) ? "x-five999-bridge-secret" : (cleanEnvironmentValue(FMS_API_TOKEN_HEADER) || "api-token"),
       authPrefix: cleanEnvironmentValue(FMS_API_TOKEN_PREFIX) || "(none)",
       tokenPresent: Boolean(cleanEnvironmentValue(FMS_API_TOKEN)),
       tokenLength: cleanEnvironmentValue(FMS_API_TOKEN).length,
@@ -1839,7 +1827,9 @@ app.get("/api/fms-connection-test", requireUser, async (req, res) => {
       durationMs: Date.now() - startedAt,
       endpoint: error.endpoint || route,
       baseUrl: fmsApiUrl("").replace(/\/$/, ""),
-      authHeader: cleanEnvironmentValue(FMS_API_TOKEN_HEADER) || "api-token",
+      transport: cleanEnvironmentValue(FMS_BRIDGE_URL) ? "FiveM bridge" : "Direct FMS",
+      bridgeUrl: cleanEnvironmentValue(FMS_BRIDGE_URL) || null,
+      authHeader: cleanEnvironmentValue(FMS_BRIDGE_URL) ? "x-five999-bridge-secret" : (cleanEnvironmentValue(FMS_API_TOKEN_HEADER) || "api-token"),
       authPrefix: cleanEnvironmentValue(FMS_API_TOKEN_PREFIX) || "(none)",
       tokenPresent: Boolean(cleanEnvironmentValue(FMS_API_TOKEN)),
       tokenLength: cleanEnvironmentValue(FMS_API_TOKEN).length,
