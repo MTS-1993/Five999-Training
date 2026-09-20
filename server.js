@@ -775,6 +775,22 @@ async function fmsRequest(route, options = {}, context = {}) {
   return data;
 }
 
+function isRetryableFmsError(error) {
+  const status = Number(error?.status || 0);
+
+  // Retry only genuinely transient failures. Authentication/permission and
+  // validation failures must be returned immediately instead of being retried.
+  if ([408, 425, 429].includes(status)) return true;
+  if (status >= 500 && status <= 599) return true;
+
+  // fetch() network failures normally surface as TypeError. AbortError is
+  // produced by the request timeout in fmsRequest(). Both may succeed later.
+  if (error?.name === "TypeError" || error?.name === "AbortError") return true;
+
+  const code = String(error?.code || "").toUpperCase();
+  return ["ECONNRESET", "ECONNREFUSED", "ETIMEDOUT", "EAI_AGAIN", "ENOTFOUND"].includes(code);
+}
+
 async function waitForFmsRetry(attempt, error) {
   // Honour FMS's Retry-After response/message and add a small safety margin.
   const serverDelayMs = Number(error?.retryAfterMs) || 0;
